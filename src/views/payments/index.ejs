@@ -1,0 +1,71 @@
+<%- include('../partials/shell', { primaryAction: { href: '/paiements/nouveau', label: 'Enregistrer un paiement', icon: 'wallet' } }) %>
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const qs = (o) => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+%>
+<form method="get" action="/paiements" class="card p-4 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="field-label" for="month">Mois</label>
+    <select class="field-input" id="month" name="month">
+      <option value="">Tous</option>
+      <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= String(filters.month) === String(i+1) ? 'selected' : '' %>><%= m %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="year">Année</label>
+    <input class="field-input w-28" id="year" name="year" type="number" value="<%= filters.year || '' %>" placeholder="2026">
+  </div>
+  <div>
+    <label class="field-label" for="tenant_id">Locataire</label>
+    <select class="field-input" id="tenant_id" name="tenant_id">
+      <option value="">Tous</option>
+      <% tenants.forEach(t => { %><option value="<%= t.id %>" <%= String(filters.tenant_id) === String(t.id) ? 'selected' : '' %>><%= t.last_name %> <%= t.first_name %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="floor_id">Étage</label>
+    <select class="field-input" id="floor_id" name="floor_id">
+      <option value="">Tous</option>
+      <% floors.forEach(f => { %><option value="<%= f.id %>" <%= String(filters.floor_id) === String(f.id) ? 'selected' : '' %>><%= f.label %></option><% }) %>
+    </select>
+  </div>
+  <button class="btn btn-ghost">Filtrer</button>
+  <a href="/export/paiements.csv?<%= qs(filters) %>" class="btn btn-ghost"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</a>
+</form>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+    <h2 class="font-semibold"><%= payments.length %> paiement(s)</h2>
+    <p class="text-sm text-ink-500">Total affiché : <strong class="text-ink-900"><%= fmtFcfa(total) %></strong></p>
+  </div>
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead>
+        <tr><th>Date</th><th>Locataire</th><th>Étage / logement</th><th>Mois</th><th>Payé</th><th>Attendu</th><th>Mode</th></tr>
+      </thead>
+      <tbody>
+        <% if (!payments.length) { %>
+          <tr><td colspan="7" class="py-10 text-center text-ink-500">
+            Aucun paiement enregistré.<br>
+            <a href="/paiements/nouveau" class="text-brand-600 hover:underline font-medium mt-2 inline-block">Enregistrer un premier paiement</a>
+          </td></tr>
+        <% } %>
+        <% payments.forEach(p => { const done = p.amount >= p.expected_amount; %>
+          <tr>
+            <td data-label="Date"><%= fmtDate(p.paid_at) %></td>
+            <td data-label="Locataire"><a class="font-medium hover:text-brand-700" href="/locataires/<%= p.tenant_id %>"><%= p.tenant_name %></a></td>
+            <td data-label="Logement"><%= p.floor_label %> · <%= p.unit_name %></td>
+            <td data-label="Mois"><%= fmtPeriode(p.period_year, p.period_month) %></td>
+            <td data-label="Payé"><%= fmtFcfa(p.amount) %></td>
+            <td data-label="Attendu">
+              <span class="<%= done ? 'text-brand-700' : 'text-amber-700' %>"><%= fmtFcfa(p.expected_amount) %></span>
+              <% if (!done) { %><span class="badge badge-partial ml-1">reste <%= fmtFcfa(p.expected_amount - p.amount) %></span><% } %>
+            </td>
+            <td data-label="Mode"><%= ({ especes:'Espèces', wave:'Wave', orange_money:'Orange Money', virement:'Virement' })[p.method] %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

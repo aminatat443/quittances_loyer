@@ -1,0 +1,66 @@
+<%- include('../partials/shell', { primaryAction: { href: '/logements/nouveau', label: 'Ajouter un logement', icon: 'plus' } }) %>
+<%
+  const statusBadge = (s) => s === 'occupied'
+    ? '<span class="badge badge-info">Occupé</span>'
+    : s === 'available' ? '<span class="badge badge-paid">Disponible</span>'
+    : '<span class="badge badge-pending">Indisponible</span>';
+%>
+
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <% floors.forEach(floor => { %>
+    <section class="card p-5">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="font-semibold"><%= floor.label %></h2>
+        <span class="text-xs text-ink-500"><%= floor.units.filter(u => u.status === 'occupied').length %>/<%= floor.units.length %> occupé(s)</span>
+      </div>
+      <% if (!floor.units.length) { %>
+        <p class="text-sm text-ink-500 mt-4">Aucun logement enregistré à cet étage.</p>
+      <% } else { %>
+        <ul class="mt-4 space-y-2">
+          <% floor.units.forEach(u => { %>
+            <li class="rounded-lg border border-gray-100 p-3 hover:border-brand-100 transition">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold truncate"><%= u.name %>
+                    <span class="font-normal text-ink-500">· <%= u.type_label %></span></p>
+                  <p class="text-xs text-ink-500 mt-0.5"><%= fmtFcfa(u.agreed_rent || u.default_rent) %>/mois</p>
+                  <% if (u.tenant_name) { %>
+                    <a href="/locataires/<%= u.tenant_id %>" class="text-xs text-brand-600 hover:underline mt-1 inline-block">
+                      <%= u.tenant_name %> · entrée <%= fmtDate(u.tenancy_start) %></a>
+                  <% } %>
+                </div>
+                <%- statusBadge(u.status) %>
+              </div>
+              <div class="mt-2 flex gap-2">
+                <a href="/logements/<%= u.id %>/modifier" class="text-xs text-ink-500 hover:text-ink-900 inline-flex items-center gap-1">
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Modifier</a>
+                <% if (u.status === 'available') { %>
+                  <a href="/locataires/nouveau?unit_id=<%= u.id %>" class="text-xs text-brand-600 hover:underline inline-flex items-center gap-1">
+                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Attribuer</a>
+                <% } %>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </section>
+  <% }) %>
+</div>
+
+<div class="card p-5">
+  <h2 class="font-semibold mb-4">Ajouter un étage</h2>
+  <form method="post" action="/logements/etages" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="flex-1">
+      <label class="field-label">Libellé complet</label>
+      <input class="field-input" name="label" placeholder="Quatrième étage" required>
+    </div>
+    <div class="flex-1">
+      <label class="field-label">Libellé court</label>
+      <input class="field-input" name="short_label" placeholder="4e étage">
+    </div>
+    <button class="btn btn-primary">Ajouter</button>
+  </form>
+  <p class="text-xs text-ink-500 mt-3">Types de logement et loyers de référence se modifient dans les paramètres.</p>
+</div>
+<%- include('../partials/foot') %>

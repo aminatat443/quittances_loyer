@@ -1,0 +1,107 @@
+/* Feuille d'impression A4 : 3 quittances par page, découpe au pointillé.
+   Les dimensions sont volontairement prudentes (200 mm exploitables) pour
+   rester dans les marges de sécurité des imprimantes grand public. */
+
+@page { size: A4 portrait; margin: 5mm; }
+
+#sheet-root {
+  width: 200mm;
+  margin: 0 auto;
+}
+
+.a4-sheet {
+  width: 200mm;
+  height: 287mm;
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  box-sizing: border-box;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+}
+.a4-sheet:last-child { page-break-after: auto; break-after: auto; }
+
+.rent-receipt {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  padding: 2.5mm 4mm;
+  border: 1px solid #555;
+  border-radius: 1mm;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ligne de découpe entre les blocs d'une même feuille */
+.a4-sheet > .rent-receipt + .rent-receipt { border-top: 0; }
+.a4-sheet > .rent-receipt:not(:first-child) { position: relative; }
+.a4-sheet > .rent-receipt:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: -2.5mm; left: 0; right: 0;
+  border-top: 1px dashed #999;
+}
+.a4-sheet > .rent-receipt.empty-slot { border: 1px dashed #bbb; background: #fff; }
+
+/* une seule quittance par page : même modèle, corps agrandi, sans pointillé de découpe */
+.a4-sheet.single { grid-template-rows: 1fr; }
+.a4-sheet.single > .rent-receipt { padding: 8mm 10mm; border-width: 1.2pt; }
+.a4-sheet.single > .rent-receipt::before { display: none; }
+.a4-sheet.single .doc-title { font-size: 15pt; }
+.a4-sheet.single .doc-sub { font-size: 9.5pt; }
+.a4-sheet.single .doc-meta { font-size: 10pt; }
+.a4-sheet.single .doc-body { font-size: 10.5pt; line-height: 1.55; }
+.a4-sheet.single .doc-sign { font-size: 10pt; }
+.a4-sheet.single .amounts { font-size: 10pt; }
+.a4-sheet.single .sig-line { width: 45mm; margin-top: 10mm; }
+.a4-sheet.single .sig-img { max-height: 22mm; max-width: 60mm; }
+
+.doc-title {
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-align: center;
+  line-height: 1.2;
+}
+.doc-sub { font-size: 6.8pt; text-align: center; color: #333; line-height: 1.35; }
+.doc-meta { font-size: 7pt; }
+.doc-body { font-size: 7.4pt; line-height: 1.4; }
+.doc-body p { margin: 0; }
+.doc-line { display: flex; gap: 1.5mm; align-items: baseline; }
+.doc-line .lab { white-space: nowrap; color: #333; }
+.doc-line .fill { flex: 1; border-bottom: 1px dotted #777; min-width: 8mm; }
+.doc-strong { font-weight: 700; }
+.doc-rule { border-top: 1px solid #666; margin: 1.2mm 0; }
+.doc-sign { font-size: 7pt; }
+.amounts { font-size: 7.1pt; border-collapse: collapse; }
+.amounts th { text-align: left; font-weight: 600; color: #333; padding: .6mm 1.5mm .6mm 0; white-space: nowrap; }
+.amounts td { text-align: right; padding: .6mm 5mm .6mm 1mm; white-space: nowrap; }
+.amounts tr:first-child { border-top: 1px solid #666; }
+.amounts tr:last-child { border-bottom: 1px solid #666; }
+.partial { border: 1px solid #666; padding: 1mm 1.5mm; }
+/* avis de loyer : cadre plus marqué et avertissement encadré, lisibles en noir et blanc */
+.notice-doc { border-width: 1.4pt; }
+.notice { border: 1px solid #333; border-left-width: 2.5pt; padding: 1mm 1.5mm; }
+.sig-line { border-bottom: 1px solid #333; width: 28mm; margin: 5mm 0 0 auto; }
+.sig-img { max-height: 12mm; max-width: 35mm; object-fit: contain; display: block; margin-left: auto; }
+
+@media print {
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .no-print { display: none !important; }
+  #sheet-root { width: auto; margin: 0; }
+  .a4-sheet { width: 200mm; height: 287mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* Aperçu à l'écran : on montre la page telle qu'elle sortira */
+@media screen {
+  body.print-sheet { background: #6b7280; padding: 1rem 0 3rem; }
+  body.print-sheet .a4-sheet {
+    box-shadow: 0 2px 10px rgba(0,0,0,.35);
+    margin: 0 auto 10mm;
+    background: #fff;
+  }
+}

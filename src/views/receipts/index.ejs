@@ -1,0 +1,156 @@
+<%- include('../partials/shell', { primaryAction: { href: '/quittances/nouvelle', label: 'Générer une quittance', icon: 'file-plus' } }) %>
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const qs = (o) => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+%>
+<form method="get" action="/quittances" class="card p-4 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="field-label" for="month">Mois</label>
+    <select class="field-input" id="month" name="month">
+      <option value="">Tous</option>
+      <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= String(filters.month) === String(i+1) ? 'selected' : '' %>><%= m %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="year">Année</label>
+    <input class="field-input w-28" id="year" name="year" type="number" value="<%= filters.year || '' %>" placeholder="2026">
+  </div>
+  <div>
+    <label class="field-label" for="tenant_id">Locataire</label>
+    <select class="field-input" id="tenant_id" name="tenant_id">
+      <option value="">Tous</option>
+      <% tenants.forEach(t => { %><option value="<%= t.id %>" <%= String(filters.tenant_id) === String(t.id) ? 'selected' : '' %>><%= t.last_name %> <%= t.first_name %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="floor_id">Étage</label>
+    <select class="field-input" id="floor_id" name="floor_id">
+      <option value="">Tous</option>
+      <% floors.forEach(f => { %><option value="<%= f.id %>" <%= String(filters.floor_id) === String(f.id) ? 'selected' : '' %>><%= f.label %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="type">Document</label>
+    <select class="field-input" id="type" name="type">
+      <option value="">Tous</option>
+      <option value="full" <%= filters.type === 'full' ? 'selected' : '' %>>Intégral</option>
+      <option value="partial" <%= filters.type === 'partial' ? 'selected' : '' %>>Partiel</option>
+      <option value="avis" <%= filters.type === 'avis' ? 'selected' : '' %>>Avis de loyer</option>
+    </select>
+  </div>
+  <button class="btn btn-ghost">Filtrer</button>
+  <a href="/export/quittances.csv?<%= qs(filters) %>" class="btn btn-ghost"><i data-lucide="download" class="w-4 h-4"></i> Export CSV</a>
+</form>
+
+<% if (receipts.length) { %>
+  <form id="lot-bar" method="post" action="/impression/demander" class="card p-4 flex flex-wrap items-center gap-3">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="select-all" data-select-all class="rounded border-gray-300" aria-label="Tout sélectionner">
+      <label for="select-all" class="text-sm font-medium">Tout sélectionner</label>
+    </div>
+    <label class="text-sm flex items-center gap-2" for="lot-mode">
+      Mise en page
+      <select class="field-input w-auto" id="lot-mode" name="mode" data-print-mode>
+        <option value="trio">3 documents / feuille A4</option>
+        <option value="une">1 document par page A4</option>
+        <option value="copies">3 exemplaires identiques (1 feuille)</option>
+      </select>
+    </label>
+    <button type="submit" class="btn btn-primary"><i data-lucide="printer" class="w-4 h-4"></i> Imprimer la sélection</button>
+    <button type="submit" formaction="/impression/pdf" class="btn btn-ghost"<% if (!pdfAvailable) { %> disabled title="Moteur PDF indisponible sur cette machine"<% } %>>
+      <i data-lucide="file-down" class="w-4 h-4"></i> Télécharger en PDF</button>
+    <p class="text-xs text-ink-500" data-lot-count>Aucun document sélectionné.</p>
+    <a href="/impression<%= filters.year && filters.month ? `?year=${filters.year}&month=${filters.month}` : '' %>"
+       class="text-xs text-brand-600 hover:underline ml-auto">Impression groupée du mois</a>
+  </form>
+<% } %>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100">
+    <h2 class="font-semibold"><%= receipts.length %> document(s)</h2>
+    <p class="text-xs text-ink-500 mt-1">Menu « Actions » : PDF, WhatsApp, e-mail, impression et historique des transmissions.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead>
+        <tr><th></th><th>Numéro</th><th>Locataire</th><th>Logement</th><th>Mois</th><th>Attendu</th><th>Payé</th><th>Solde</th><th>Statut</th><th>Émis le</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% if (!receipts.length) { %>
+          <tr><td colspan="11" class="py-10 text-center text-ink-500">
+            Aucune quittance pour ces critères.<br>
+            <a href="/quittances/nouvelle" class="text-brand-600 hover:underline font-medium mt-2 inline-block">Générer une quittance</a>
+          </td></tr>
+        <% } %>
+        <% receipts.forEach(r => { %>
+          <tr>
+            <td data-label="">
+              <input type="checkbox" name="ids" value="<%= r.id %>" form="lot-bar" data-selectable class="rounded border-gray-300"
+                     aria-label="Sélectionner <%= r.number %>">
+            </td>
+            <td data-label="Numéro" class="font-medium"><%= r.number %></td>
+            <td data-label="Locataire"><a class="hover:text-brand-700" href="/locataires/<%= r.tenant_id %>"><%= r.tenant_name %></a></td>
+            <td data-label="Logement"><%= r.floor_label %> · <%= r.unit_name %></td>
+            <td data-label="Mois"><%= r.period_label %></td>
+            <td data-label="Attendu"><%= r.expected_fr %></td>
+            <td data-label="Payé"><%= r.total_paid_fr %></td>
+            <td data-label="Solde"><%= r.balance_fr %></td>
+            <td data-label="Statut">
+              <span class="badge <%= r.is_full ? 'badge-paid' : r.is_avis ? 'badge-info' : 'badge-partial' %>">
+                <%= r.is_full ? 'Intégral' : r.is_avis ? 'Non payé' : 'Partiel' %></span>
+              <% if (r.is_avis) { %><p class="text-xs text-ink-500 mt-1">Avis de loyer</p><% } %>
+            </td>
+            <td data-label="Émis le"><%= r.issued_at_fr %></td>
+            <td data-label="">
+              <div class="flex items-center gap-2 justify-end">
+                <a href="/quittances/<%= r.id %>" class="text-brand-600 hover:underline text-xs">Consulter</a>
+                <details class="relative row-menu">
+                  <summary class="btn btn-ghost !px-2 !py-1 cursor-pointer list-none text-xs" aria-label="Actions">
+                    <i data-lucide="more-horizontal" class="w-4 h-4"></i> Actions
+                  </summary>
+                  <div class="mt-2 w-64 max-w-full card p-3 space-y-2 text-left shadow-sm">
+                    <form method="post" action="/quittances/<%= r.id %>/pdf">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="mode" value="une">
+                      <button class="btn btn-ghost w-full justify-start !px-2 !py-1" <%= pdfAvailable ? '' : 'disabled' %>>
+                        <i data-lucide="file-down" class="w-4 h-4"></i> Télécharger le PDF</button>
+                    </form>
+                    <form method="post" action="/quittances/<%= r.id %>/whatsapp" target="_blank" rel="noopener noreferrer" class="space-y-1">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <label class="block text-[11px] text-ink-500">Numéro (modifiable, temporaire)
+                        <input class="field-input !py-1 mt-1" name="phone" value="<%= r.phone || '' %>" placeholder="77 123 45 67"></label>
+                      <button class="btn btn-ghost w-full justify-start !px-2 !py-1">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i> Envoyer par WhatsApp</button>
+                      <% if (!r.phone) { %><p class="text-[11px] text-amber-700">Aucun numéro enregistré : saisissez-le ici
+                        ou sur la <a class="underline" href="/locataires/<%= r.tenant_id %>">fiche</a>.</p><% } %>
+                    </form>
+                    <form method="post" action="/quittances/<%= r.id %>/email"<% if (!smtpAvailable) { %> target="_blank" rel="noopener noreferrer"<% } %> class="space-y-1">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <label class="block text-[11px] text-ink-500">Adresse e-mail
+                        <input class="field-input !py-1 mt-1" type="email" name="to" value="<%= r.email || '' %>" placeholder="locataire@exemple.sn"></label>
+                      <button class="btn btn-ghost w-full justify-start !px-2 !py-1">
+                        <i data-lucide="mail" class="w-4 h-4"></i> <%= smtpAvailable ? 'Envoyer par e-mail' : 'Préparer l\'e-mail' %></button>
+                      <% if (!r.email) { %><p class="text-[11px] text-amber-700">Aucune adresse enregistrée : saisissez-la ici
+                        ou sur la <a class="underline" href="/locataires/<%= r.tenant_id %>">fiche</a>.</p><% } %>
+                    </form>
+                    <form method="post" action="/impression/demander" target="_blank" rel="noopener noreferrer">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="ids" value="<%= r.id %>">
+                      <input type="hidden" name="mode" value="une">
+                      <button class="btn btn-ghost w-full justify-start !px-2 !py-1">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Imprimer</button>
+                    </form>
+                    <a href="/quittances/<%= r.id %>#transmissions" class="btn btn-ghost w-full justify-start !px-2 !py-1">
+                      <i data-lucide="history" class="w-4 h-4"></i> Historique des transmissions</a>
+                  </div>
+                </details>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

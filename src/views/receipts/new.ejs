@@ -1,0 +1,30 @@
+<%- include('../partials/shell') %>
+<div class="grid lg:grid-cols-5 gap-4">
+  <div class="lg:col-span-3">
+    <%- include('../partials/receipt-form', { submitLabel: 'Enregistrer et générer la quittance', cancelHref: '/quittances' }) %>
+  </div>
+  <div class="lg:col-span-2 space-y-4">
+    <div class="card p-5">
+      <h3 class="font-semibold mb-3">Règles appliquées</h3>
+      <ul class="space-y-3 text-sm text-ink-700">
+        <li class="flex gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-brand-600 shrink-0 mt-0.5"></i>
+          Une quittance de paiement intégral n'est délivrée que lorsque le loyer du mois est entièrement réglé.</li>
+        <li class="flex gap-2"><i data-lucide="file-minus" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+          Un paiement inférieur au loyer attendu produit un <strong>reçu de paiement partiel</strong>, jamais présenté comme un loyer acquitté.</li>
+        <li class="flex gap-2"><i data-lucide="copy-x" class="w-4 h-4 text-red-600 shrink-0 mt-0.5"></i>
+          Un doublon de quittance intégrale pour le même locataire, logement et période est bloqué avec avertissement.</li>
+        <li class="flex gap-2"><i data-lucide="hash" class="w-4 h-4 text-brand-600 shrink-0 mt-0.5"></i>
+          Numéro unique généré automatiquement (préfixe-année-série), jamais réutilisé.</li>
+        <li class="flex gap-2"><i data-lucide="archive" class="w-4 h-4 text-ink-500 shrink-0 mt-0.5"></i>
+          Chaque document conserve un instantané des données : modifier un nom ou un tarif n'altère pas les quittances passées.</li>
+      </ul>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold mb-2">Paiements partiels successifs</h3>
+      <p class="text-sm text-ink-700 leading-relaxed">Enregistrez chaque versement : l'historique est conservé. Dès que le total atteint le loyer attendu,
+        la génération produit une <strong>quittance définitive récapitulative</strong> indiquant le total payé et un solde nul.</p>
+      <a href="/quittances" class="text-sm text-brand-600 hover:underline mt-3 inline-block">Consulter l'historique des quittances</a>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

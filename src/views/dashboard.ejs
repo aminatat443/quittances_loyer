@@ -1,0 +1,115 @@
+<%- include('partials/shell') %>
+<%
+const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const years = [];
+for (let y = curYear + 1; y >= curYear - 8; y--) years.push(y);
+const pct = totals.expected > 0 ? Math.min(100, Math.round(totals.collected / totals.expected * 100)) : 0;
+%>
+
+<div class="flex flex-col sm:flex-row sm:items-end gap-3">
+  <form method="get" action="/" class="card p-4 flex flex-wrap items-end gap-3">
+    <div>
+      <label class="field-label" for="month">Mois</label>
+      <select class="field-input" id="month" name="month">
+        <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="year">Année</label>
+      <select class="field-input" id="year" name="year">
+        <% years.forEach(y => { %><option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option><% }) %>
+      </select>
+    </div>
+    <button class="btn btn-ghost"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Actualiser</button>
+  </form>
+  <div class="flex-1"></div>
+  <div class="flex flex-wrap gap-2">
+    <a href="/locataires/nouveau" class="btn btn-ghost"><i data-lucide="user-plus" class="w-4 h-4"></i> Ajouter un locataire</a>
+    <a href="/quittances/nouvelle" class="btn btn-primary"><i data-lucide="file-plus" class="w-4 h-4"></i> Générer une quittance</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="card p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-ink-500">Locataires actifs</p>
+    <p class="mt-2 text-2xl font-semibold"><%= occ.tenants %></p>
+    <a class="text-xs text-brand-600 hover:underline mt-1 inline-block" href="/locataires">Consulter la liste</a>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-ink-500">Logements occupés</p>
+    <p class="mt-2 text-2xl font-semibold"><%= occ.occupied %></p>
+    <a class="text-xs text-brand-600 hover:underline mt-1 inline-block" href="/logements">Vue du bâtiment</a>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-ink-500">Logements disponibles</p>
+    <p class="mt-2 text-2xl font-semibold"><%= occ.available %></p>
+    <span class="text-xs text-ink-500 mt-1 block"><%= occ.total_units %> logement(s) au total</span>
+  </div>
+  <div class="card p-5">
+    <p class="text-xs font-semibold uppercase tracking-wide text-ink-500">Loyers en attente</p>
+    <p class="mt-2 text-2xl font-semibold"><%= pending.pending %></p>
+    <span class="text-xs text-ink-500 mt-1 block">sur <%= pending.due %> location(s) à <%= MONTHS[month-1] %> <%= year %></span>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-4">
+  <div class="card p-5 lg:col-span-2">
+    <div class="flex items-baseline justify-between gap-3 flex-wrap">
+      <h2 class="font-semibold">Encaissements de <%= MONTHS[month-1] %> <%= year %></h2>
+      <span class="text-sm text-ink-500"><%= counts.paid %> payé(s) · <%= counts.partial %> partiel(s) · <%= pending.pending %> en attente</span>
+    </div>
+    <div class="mt-4 grid sm:grid-cols-3 gap-4">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-ink-500">Encaissé</p>
+        <p class="text-xl font-semibold text-brand-700 mt-1"><%= fmtFcfa(totals.collected) %></p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-ink-500">Attendu</p>
+        <p class="text-xl font-semibold mt-1"><%= fmtFcfa(totals.expected) %></p>
+      </div>
+      <div>
+        <p class="text-xs uppercase tracking-wide text-ink-500">Reste</p>
+        <p class="text-xl font-semibold mt-1"><%= fmtFcfa(Math.max(totals.expected - totals.collected, 0)) %></p>
+      </div>
+    </div>
+    <div class="mt-4 h-2 rounded-full bg-gray-100 overflow-hidden">
+      <div class="h-full bg-brand-500" style="width: <%= pct %>%"></div>
+    </div>
+    <p class="text-xs text-ink-500 mt-2"><%= pct %>% recouvré. Les loyers ne sont jamais considérés payés automatiquement : ils le sont par les paiements enregistrés.</p>
+    <div class="mt-4 flex flex-wrap gap-2">
+      <a href="/quittances/mois?year=<%= year %>&month=<%= month %>" class="btn btn-primary"><i data-lucide="calendar-check-2" class="w-4 h-4"></i> Quittances du mois</a>
+      <a href="/calendrier?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="calendar-days" class="w-4 h-4"></i> Suivi mensuel</a>
+      <a href="/paiements?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="wallet" class="w-4 h-4"></i> Paiements du mois</a>
+      <a href="/quittances?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="history" class="w-4 h-4"></i> Historique des quittances</a>
+      <a href="/impression?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="printer" class="w-4 h-4"></i> Impression groupée</a>
+    </div>
+  </div>
+
+  <div class="card p-5">
+    <h2 class="font-semibold">Dernières quittances</h2>
+    <% if (!recent.length) { %>
+      <div class="mt-6 text-center py-8">
+        <i data-lucide="file-text" class="w-8 h-8 mx-auto text-gray-300"></i>
+        <p class="text-sm text-ink-500 mt-3">Aucune quittance générée pour l'instant.</p>
+        <a href="/quittances/nouvelle" class="btn btn-primary mt-4">Générer la première</a>
+      </div>
+    <% } else { %>
+      <ul class="mt-4 space-y-3">
+        <% recent.forEach(r => { %>
+          <li>
+            <a href="/quittances/<%= r.id %>" class="flex items-start gap-3 group">
+              <span class="grid place-items-center w-8 h-8 rounded-lg <%= r.type === 'recu_partiel' ? 'bg-amber-50 text-amber-700' : 'bg-brand-50 text-brand-700' %> shrink-0">
+                <i data-lucide="<%= r.type === 'recu_partiel' ? 'file-minus' : 'file-check-2' %>" class="w-4 h-4"></i>
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-medium truncate group-hover:text-brand-700"><%= r.tenant_name %></span>
+                <span class="block text-xs text-ink-500"><%= r.number %> · <%= fmtPeriode(r.period_year, r.period_month) %> · <%= fmtFcfa(r.total_paid) %></span>
+              </span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</div>
+<%- include('partials/foot') %>

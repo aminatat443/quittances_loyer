@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aperçu d'impression · <%= receipts.length %> quittance(s)</title>
+  <% if (!standalone) { %>
+  <script src="/static/vendor/tailwind.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: { 600:'#256343', 700:'#1c4c34' }, ink: { 500:'#6b7280' } } } } };
+  </script>
+  <% } %>
+  <link rel="stylesheet" href="/static/css/print.css">
+</head>
+<body class="print-sheet">
+  <% if (!standalone) { %>
+  <div class="no-print sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+      <a href="/impression" onclick="if (history.length > 1) { history.back(); return false; }"
+         class="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Retour</a>
+      <div class="flex-1">
+        <p class="text-sm font-medium"><%= sheetsLabel %></p>
+        <p class="text-xs text-gray-500">
+          <% if (mode === 'une') { %>A4 portrait · une quittance par page, sans découpe.<% }
+             else if (mode === 'copies') { %>A4 portrait · 3 exemplaires sur une feuille.<% }
+             else { %>A4 portrait · 3 blocs par page · découpe sur les pointillés · rendu identique en noir et blanc.<% } %>
+        </p>
+        <% if (autoPrint) { %>
+          <p class="text-xs text-gray-500 mt-0.5">Enregistrement PDF : choisissez « Enregistrer au format PDF » dans la boîte d'impression.</p>
+        <% } %>
+        <% if (copiesNotice) { %>
+          <p class="text-xs text-amber-700 mt-0.5">Mode « 3 exemplaires » : seule la première quittance sélectionnée est répétée trois fois.</p>
+        <% } %>
+        <p class="text-xs text-gray-500 mt-0.5">
+          La demande d'impression est enregistrée comme « préparée » : le navigateur ne peut pas confirmer
+          la sortie physique du papier.
+        </p>
+      </div>
+      <form method="post" action="/impression/demander" class="contents">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="ids" value="<%= receipts.map(r => r.id).join(',') %>">
+        <input type="hidden" name="mode" value="<%= mode %>">
+        <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700">
+          <i data-lucide="printer" class="w-4 h-4"></i> Imprimer
+        </button>
+      </form>
+      <form method="post" action="/impression/pdf" class="contents">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="ids" value="<%= receipts.map(r => r.id).join(',') %>">
+        <input type="hidden" name="mode" value="<%= mode %>">
+        <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+          <i data-lucide="file-down" class="w-4 h-4"></i> Télécharger le PDF
+        </button>
+      </form>
+      <form method="post" action="/impression/confirme" class="contents">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="ids" value="<%= receipts.map(r => r.id).join(',') %>">
+        <input type="hidden" name="sheets" value="<%= sheets.length %>">
+        <button class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+          <i data-lucide="badge-check" class="w-4 h-4"></i> J'ai imprimé
+        </button>
+      </form>
+    </div>
+  </div>
+  <% } %>
+
+  <div id="sheet-root">
+    <% sheets.forEach(sheet => { %>
+      <section class="a4-sheet<%= mode === 'une' ? ' single' : '' %>">
+        <% sheet.forEach(block => { %>
+          <% if (block) { %><%- include('../partials/receipt-doc', { r: block }) %>
+          <% } else { %><div class="rent-receipt empty-slot"></div><% } %>
+        <% }) %>
+      </section>
+    <% }) %>
+  </div>
+
+<% if (!standalone) { %>
+<script src="/static/vendor/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+<% if (autoPrint) { %>
+  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 150));</script>
+<% } %>
+<% } %>
+</body>
+</html>

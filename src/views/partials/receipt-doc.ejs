@@ -1,0 +1,129 @@
+<%/* Un bloc imprimable, calibré pour tenir dans un tiers de page A4 (95,6 mm).
+     s = paramètres (fournis globalement), r = document décoré (quittance, reçu ou avis) */ %>
+<% const s = locals.settingsMap; const tenantName = r.snap.tenant_name; %>
+<% if (r.is_avis) { %>
+<article class="rent-receipt notice-doc">
+  <header class="text-center">
+    <p class="doc-title">AVIS DE LOYER</p>
+    <p class="doc-sub"><%= r.snap.building_name %><%= r.snap.building_address ? ' — ' + r.snap.building_address : '' %></p>
+    <p class="doc-sub">Propriétaire : <strong><%= r.snap.owner_name %></strong><%= r.snap.owner_phone ? ' · Tél. ' + r.snap.owner_phone : '' %></p>
+    <div class="doc-rule"></div>
+  </header>
+
+  <div class="doc-meta flex justify-between gap-2">
+    <span>N° <strong><%= r.number %></strong></span>
+    <span>Document de suivi — <%= r.period_label %></span>
+    <span><%= r.issued_place %>, le <%= r.issued_at_fr %></span>
+  </div>
+
+  <div class="doc-body mt-[1.5mm]">
+    <p><strong><%= tenantName %></strong> est informé que le loyer
+      <strong><%= elided(r.period_label) %></strong> (<%= r.period_range %>) pour le logement
+      <strong><%= r.snap.unit_name %></strong> — <%= r.snap.floor_label %><%= r.snap.unit_type_label ? ' (' + r.snap.unit_type_label + ')' : '' %>
+      n'apparaît pas comme réglé dans nos livres.</p>
+
+    <table class="w-full mt-[1.5mm] amounts">
+      <tr>
+        <th>Loyer attendu</th><td><%= r.expected_fr %></td>
+        <th>Déjà réglé</th><td><%= r.total_paid_fr %></td>
+      </tr>
+      <tr>
+        <th>Solde à régler</th><td class="doc-strong"><%= r.balance_fr %></td>
+        <th>en lettres</th><td><em><%= r.balance_in_words %></em></td>
+      </tr>
+    </table>
+
+    <% if (r.total_paid > 0) { %>
+      <p class="mt-[1.5mm]">Un versement partiel a bien été enregistré pour cette période :
+        le solde indiqué ci-dessus reste dû.</p>
+    <% } %>
+
+    <p class="notice mt-[1.5mm]"><strong>CE DOCUMENT N'EST PAS UNE QUITTANCE.</strong>
+      Il ne constate aucun paiement reçu et ne peut tenir lieu de preuve de règlement.
+      La quittance sera délivrée dès l'encaissement effectif du loyer.</p>
+
+    <% if (r.observations) { %><p class="mt-[1mm]">Observations : <%= r.observations %></p><% } %>
+  </div>
+
+  <footer class="doc-sign mt-auto pt-[1.5mm]">
+    <div class="doc-rule"></div>
+    <div class="flex justify-between items-end gap-3">
+      <p>Merci de régulariser auprès du propriétaire<%= r.snap.owner_phone ? ' au ' + r.snap.owner_phone : '' %>.</p>
+      <div class="text-right shrink-0">
+        <p><%= r.snap.owner_name %></p>
+        <% if (s.signature_path) { %>
+          <img class="sig-img ml-auto" src="/signatures/<%= s.signature_path %>" alt="Signature">
+        <% } else { %>
+          <div class="sig-line"></div>
+        <% } %>
+      </div>
+    </div>
+    <% if (s.document_footer) { %><p class="doc-sub mt-[1mm]"><%= s.document_footer %></p><% } %>
+  </footer>
+</article>
+<% } else { %>
+<article class="rent-receipt">
+  <header class="text-center">
+    <p class="doc-title"><%= s.document_title || 'QUITTANCE DE LOYER' %></p>
+    <p class="doc-sub"><%= r.snap.building_name %><%= r.snap.building_address ? ' — ' + r.snap.building_address : '' %></p>
+    <p class="doc-sub">Propriétaire : <strong><%= r.snap.owner_name %></strong><%= r.snap.owner_phone ? ' · Tél. ' + r.snap.owner_phone : '' %></p>
+    <div class="doc-rule"></div>
+  </header>
+
+  <div class="doc-meta flex justify-between gap-2">
+    <span>N° <strong><%= r.number %></strong></span>
+    <span><%= r.type_label %></span>
+    <span><%= r.issued_place %>, le <%= r.issued_at_fr %></span>
+  </div>
+
+  <div class="doc-body mt-[1.5mm]">
+    <p>Reçu de <strong><%= tenantName %></strong>, la somme de
+      <strong><%= r.is_full ? r.total_paid_fr : r.amount_this_fr %></strong>
+      (<em><%= r.is_full ? r.amount_in_words : r.amount_this_in_words %></em>),
+      au titre du loyer <strong><%= elided(r.period_label) %></strong>
+      (<%= r.period_range %>).</p>
+
+    <div class="grid grid-cols-2 gap-x-3 mt-[1.5mm]">
+      <p class="doc-line"><span class="lab">Logement :</span><span class="fill"><%= r.snap.unit_name %></span></p>
+      <p class="doc-line"><span class="lab">Étage :</span><span class="fill"><%= r.snap.floor_label %></span></p>
+      <p class="doc-line col-span-2"><span class="lab">Désignation :</span><span class="fill"><%= r.snap.unit_type_label %></span></p>
+    </div>
+
+    <table class="w-full mt-[1.5mm] amounts">
+      <tr>
+        <th>Loyer attendu</th><td><%= r.expected_fr %></td>
+        <th>Reçu ce jour</th><td><%= r.amount_this_fr %></td>
+      </tr>
+      <tr>
+        <th>Total payé</th><td class="doc-strong"><%= r.total_paid_fr %></td>
+        <th>Solde restant</th><td class="<%= r.balance > 0 ? 'doc-strong' : '' %>"><%= r.balance_fr %></td>
+      </tr>
+    </table>
+
+    <% if (r.is_full) { %>
+      <p class="mt-[1.5mm]">Le loyer <%= elided(r.period_label) %> est réglé <strong>intégralement</strong>.
+        Cette quittance annule et remplace tout reçu antérieur établi pour la même période.</p>
+    <% } else { %>
+      <p class="partial mt-[1.5mm]"><strong>PAIEMENT PARTIEL</strong> — le solde de <strong><%= r.balance_fr %></strong>
+        reste dû sur le loyer <%= elided(r.period_label) %>. Le présent document ne vaut pas quittance de loyer intégralement payé.</p>
+    <% } %>
+    <% if (r.observations) { %><p class="mt-[1mm]">Observations : <%= r.observations %></p><% } %>
+  </div>
+
+  <footer class="doc-sign mt-auto pt-[1.5mm]">
+    <div class="doc-rule"></div>
+    <div class="flex justify-between items-end gap-3">
+      <p>Paiement reçu le <%= fmtDate(r.payment_date) %><%= r.method_label ? ' · ' + r.method_label : '' %></p>
+      <div class="text-right shrink-0">
+        <p>Signature du propriétaire</p>
+        <% if (s.signature_path) { %>
+          <img class="sig-img ml-auto" src="/signatures/<%= s.signature_path %>" alt="Signature">
+        <% } else { %>
+          <div class="sig-line"></div>
+        <% } %>
+      </div>
+    </div>
+    <% if (s.document_footer) { %><p class="doc-sub mt-[1mm]"><%= s.document_footer %></p><% } %>
+  </footer>
+</article>
+<% } %>

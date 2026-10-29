@@ -1,0 +1,72 @@
+<%- include('../partials/shell', { primaryAction: { href: '/quittances/nouvelle', label: 'Générer une quittance', icon: 'file-plus' } }) %>
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const prev = { year: month === 1 ? year - 1 : year, month: month === 1 ? 12 : month - 1 };
+  const next = { year: month === 12 ? year + 1 : year, month: month === 12 ? 1 : month + 1 };
+  const STAT = {
+    paid: { label: 'Payé', cls: 'badge-paid' },
+    partial: { label: 'Partiellement payé', cls: 'badge-partial' },
+    pending: { label: 'En attente', cls: 'badge-pending' },
+    na: { label: 'Non applicable', cls: 'badge-na' },
+  };
+%>
+<div class="card p-4 flex flex-wrap items-center gap-3">
+  <a href="/calendrier?year=<%= prev.year %>&month=<%= prev.month %>" class="btn btn-ghost"><i data-lucide="chevron-left" class="w-4 h-4"></i> <%= MONTHS[prev.month-1] %></a>
+  <h2 class="text-lg font-semibold capitalize"><%= periodLabel %></h2>
+  <a href="/calendrier?year=<%= next.year %>&month=<%= next.month %>" class="btn btn-ghost"><%= MONTHS[next.month-1] %> <i data-lucide="chevron-right" class="w-4 h-4"></i></a>
+  <form method="get" action="/calendrier" class="flex items-end gap-2 ml-auto">
+    <select name="month" class="field-input w-auto">
+      <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+    </select>
+    <input name="year" type="number" value="<%= year %>" class="field-input w-24">
+    <button class="btn btn-ghost">Aller</button>
+  </form>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Attendu</p><p class="text-lg font-semibold mt-1"><%= fmtFcfa(totals.expected) %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Encaissé</p><p class="text-lg font-semibold mt-1 text-brand-700"><%= fmtFcfa(totals.paid) %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Reste</p><p class="text-lg font-semibold mt-1"><%= fmtFcfa(totals.balance) %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Logements suivis</p><p class="text-lg font-semibold mt-1"><%= board.length %></p></div>
+</div>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+    <div>
+      <h3 class="font-semibold">Situation par logement</h3>
+      <p class="text-xs text-ink-500 mt-1">Le statut dépend des paiements enregistrés : aucun loyer n'est réputé payé au changement de mois.</p>
+    </div>
+    <a href="/impression?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="printer" class="w-4 h-4"></i> Imprimer les quittances du mois</a>
+  </div>
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead><tr><th>Étage / logement</th><th>Locataire</th><th>Attendu</th><th>Payé</th><th>Solde</th><th>Statut</th><th></th></tr></thead>
+      <tbody>
+        <% if (!board.length) { %>
+          <tr><td colspan="7" class="py-10 text-center text-ink-500">Aucune location active sur <%= periodLabel %>.</td></tr>
+        <% } %>
+        <% board.forEach(row => { %>
+          <tr>
+            <td data-label="Logement" class="font-medium"><%= row.floor_label %> · <%= row.unit_name %></td>
+            <td data-label="Locataire"><a href="/locataires/<%= row.tenant_id %>" class="hover:text-brand-700"><%= row.tenant_name %></a></td>
+            <td data-label="Attendu"><%= fmtFcfa(row.expected) %></td>
+            <td data-label="Payé"><%= fmtFcfa(row.paid) %></td>
+            <td data-label="Solde"><%= fmtFcfa(row.balance) %></td>
+            <td data-label="Statut"><span class="badge <%= STAT[row.status].cls %>"><%= STAT[row.status].label %></span></td>
+            <td data-label="">
+              <div class="flex gap-3 justify-end text-xs">
+                <a href="/paiements/nouveau?tenant_id=<%= row.tenant_id %>" class="text-brand-600 hover:underline">Encaisser</a>
+                <% if (row.receipt_count) { %>
+                  <a href="/quittances?tenant_id=<%= row.tenant_id %>&year=<%= year %>&month=<%= month %>" class="text-ink-500 hover:text-ink-900"><%= row.receipt_count %> doc.</a>
+                <% } else { %>
+                  <a href="/quittances/nouvelle?tenant_id=<%= row.tenant_id %>" class="text-ink-500 hover:text-ink-900">Quittance</a>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

@@ -1,0 +1,162 @@
+<%- include('../partials/shell') %>
+<div class="grid lg:grid-cols-2 gap-4 items-start">
+  <form method="post" action="/parametres" class="card p-6 space-y-5">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div>
+      <h2 class="font-semibold">Propriétaire et immeuble</h2>
+      <p class="text-xs text-ink-500 mt-1">Ces informations apparaissent sur les documents.</p>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div><label class="field-label" for="owner_name">Nom du propriétaire</label>
+        <input class="field-input" id="owner_name" name="owner_name" value="<%= s.owner_name %>" required></div>
+      <div><label class="field-label" for="owner_phone">Téléphone</label>
+        <input class="field-input" id="owner_phone" name="owner_phone" value="<%= s.owner_phone %>"></div>
+      <div><label class="field-label" for="building_name">Nom de l'immeuble</label>
+        <input class="field-input" id="building_name" name="building_name" value="<%= s.building_name %>"></div>
+      <div><label class="field-label" for="city">Ville</label>
+        <input class="field-input" id="city" name="city" value="<%= s.city %>"></div>
+      <div class="sm:col-span-2"><label class="field-label" for="building_address">Adresse</label>
+        <input class="field-input" id="building_address" name="building_address" value="<%= s.building_address %>"></div>
+    </div>
+
+    <div class="pt-2 border-t border-gray-100">
+      <h3 class="font-semibold mb-3">Types de logement et loyers de référence</h3>
+      <div class="space-y-3">
+        <% types.forEach(t => { %>
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-medium w-6"><%= t.code %></span>
+            <span class="text-sm flex-1"><%= t.label %></span>
+            <input class="field-input w-32" type="number" min="0" step="500"
+                   name="tarifs[<%= t.code %>]" value="<%= t.default_rent %>">
+            <span class="text-xs text-ink-500">FCFA/mois</span>
+          </div>
+        <% }) %>
+      </div>
+      <p class="text-xs text-ink-500 mt-2">Modifier un tarif de référence ne change ni les quittances déjà émises, ni les loyers convenus
+        avec les locataires en place (case « appliquer au locataire en cours » sur la fiche du logement).</p>
+    </div>
+
+    <div class="pt-2 border-t border-gray-100 grid sm:grid-cols-2 gap-4">
+      <div><label class="field-label" for="receipt_prefix">Préfixe de numérotation</label>
+        <input class="field-input" id="receipt_prefix" name="receipt_prefix" value="<%= s.receipt_prefix %>" maxlength="8">
+        <p class="text-xs text-ink-500 mt-1">Ex. : <code><%= s.receipt_prefix %>-<%= curYear %>-0001</code>. La série reprend à 0001 chaque année ; les numéros ne sont jamais réutilisés.</p></div>
+      <div><label class="field-label" for="notice_prefix">Préfixe des avis de loyer</label>
+        <input class="field-input" id="notice_prefix" name="notice_prefix" value="<%= s.notice_prefix %>" maxlength="8">
+        <p class="text-xs text-ink-500 mt-1">Les avis (<code><%= s.notice_prefix %>-<%= curYear %>-0001</code>) partagent la même compteur annuel
+          que les quittances : un numéro reste unique même s'il désigne un document de suivi.</p></div>
+      <div><label class="field-label" for="whatsapp_country_code">Indicatif téléphonique</label>
+        <input class="field-input" id="whatsapp_country_code" name="whatsapp_country_code" value="<%= s.whatsapp_country_code %>"
+               inputmode="numeric" maxlength="4">
+        <p class="text-xs text-ink-500 mt-1">Chiffres uniquement, ex. <code>221</code>. Sert à transformer un numéro local en lien WhatsApp.</p></div>
+      <div><label class="field-label" for="fiscal_year_start">Début du suivi (facultatif)</label>
+        <input class="field-input" id="fiscal_year_start" type="date" name="fiscal_year_start" value="<%= s.fiscal_year_start %>"></div>
+      <div class="sm:col-span-2"><label class="field-label" for="document_title">Titre affiché sur les documents</label>
+        <input class="field-input" id="document_title" name="document_title" value="<%= s.document_title %>"></div>
+      <div class="sm:col-span-2"><label class="field-label" for="document_footer">Mention de bas de page (facultative)</label>
+        <input class="field-input" id="document_footer" name="document_footer" value="<%= s.document_footer %>"
+               placeholder="Laissez vide si aucune mention légale ne s'applique à votre situation."></div>
+    </div>
+
+    <div class="flex gap-3"><button class="btn btn-primary">Enregistrer les paramètres</button></div>
+  </form>
+
+  <div class="space-y-4">
+    <div class="card p-6">
+      <h2 class="font-semibold">Envoi et partage des documents</h2>
+      <ul class="mt-3 text-xs text-ink-500 space-y-2 leading-relaxed">
+        <li class="flex items-start gap-2">
+          <span class="badge <%= pdfEngine.available ? 'badge-paid' : 'badge-pending' %> shrink-0"><%= pdfEngine.available ? 'Actif' : 'Indisponible' %></span>
+          <span><strong>PDF :</strong> <%= pdfEngine.available
+            ? `moteur ${pdfEngine.engine} — ${pdfEngine.version}. Les fichiers reprennent le modèle officiel des quittances.`
+            : 'aucun Chromium/Chrome détecté. Installez-en un, indiquez le binaire dans CHROME_PATH, ou utilisez « Imprimer » puis « Enregistrer au format PDF ».' %></span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="badge <%= smtp.available ? 'badge-paid' : 'badge-info' %> shrink-0"><%= smtp.available ? 'Envoi réel' : 'Brouillon' %></span>
+          <span><strong>E-mail :</strong> <%= smtp.available
+            ? `SMTP ${smtp.host}:${smtp.port}${smtp.secure ? ' (chiffré)' : ''} · expéditeur ${smtp.from}. La pièce jointe PDF est ajoutée automatiquement.`
+            : `aucun SMTP configuré (${smtp.missing.join(', ')}) : l'application ouvre un brouillon prérempli et ne prétend pas envoyer. Renseignez ces variables dans .env pour l'envoi réel avec pièce jointe.` %></span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="badge <%= business.available ? 'badge-paid' : 'badge-pending' %> shrink-0"><%= business.available ? 'Configurée' : 'Non configurée' %></span>
+          <span><strong>WhatsApp :</strong> <%= business.available
+            ? `API Business prête (numéro ${business.phoneNumberId}) : les messages peuvent partir sans ouvrir l'application, le PDF reste à joindre séparément.`
+            : 'aucun message ne part automatiquement — un brouillon wa.me s\'ouvre et l\'envoi doit être confirmé dans WhatsApp. ' + business.reason %></span>
+        </li>
+      </ul>
+      <p class="text-xs text-ink-500 mt-3 leading-relaxed">
+        Les mots de passe SMTP ne sont jamais affichés ni stockés dans le dépôt : uniquement le fichier
+        <code>.env</code>, hors suivi Git. Chaque démarche (WhatsApp, e-mail, PDF, impression) est consignée
+        sur la fiche du document avec son destinataire, son horodatage et son statut réel ; une ouverture de
+        brouillon reste « préparée » tant qu'aucune confirmation fiable n'existe. Un avis de loyer n'est pas
+        une quittance : il est libellé, numéroté et transmis comme document de suivi.
+      </p>
+    </div>
+
+    <div class="card p-6">
+      <h2 class="font-semibold">Signature numérisée</h2>
+      <p class="text-xs text-ink-500 mt-1">Importez uniquement une signature qui vous appartient ou pour laquelle vous avez l'autorisation.
+        Aucun cachet ni signature n'est ajouté automatiquement tant qu'aucun fichier n'est fourni.</p>
+      <% if (s.signature_path) { %>
+        <div class="mt-4 border border-gray-200 rounded-lg p-3 bg-white grid place-items-center h-28">
+          <img src="/signatures/<%= s.signature_path %>" alt="Signature importée" class="max-h-24 max-w-full object-contain">
+        </div>
+      <% } else { %>
+        <p class="mt-4 text-sm rounded-lg bg-gray-50 border border-gray-100 px-3 py-4 text-center text-ink-500">
+          Aucune signature importée — les documents laissent une ligne vierge à signer.</p>
+      <% } %>
+      <form method="post" action="/parametres/signature" enctype="multipart/form-data" class="mt-4 space-y-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input class="field-input" type="file" name="signature" accept="image/png,image/jpeg,image/webp">
+        <p class="text-xs text-ink-500">PNG, JPG ou WEBP · 2 Mo maximum.</p>
+        <div class="flex gap-3">
+          <button class="btn btn-primary">Importer</button>
+          <% if (s.signature_path) { %>
+            <button class="btn btn-danger" name="remove" value="1" formnovalidate
+                    onclick="return confirm('Retirer la signature des documents ?')">Retirer</button>
+          <% } %>
+        </div>
+      </form>
+    </div>
+
+    <div class="card p-6">
+      <h2 class="font-semibold">Sauvegarde de la base de données</h2>
+      <p class="text-xs text-ink-500 mt-1">Copies SQLite déposées dans <code>data/backups</code> : conservez-les aussi sur un disque externe.
+        Les sauvegardes de plus de 30 jours sont purgées automatiquement.</p>
+      <form method="post" action="/parametres/sauvegarde" class="mt-4">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i> Créer une sauvegarde maintenant</button>
+      </form>
+      <% if (backups.length) { %>
+        <ul class="mt-4 space-y-2 text-sm">
+          <% backups.slice(0, 6).forEach(b => { %>
+            <li class="flex items-center justify-between gap-2">
+              <span class="truncate"><%= b.name %></span>
+              <span class="text-xs text-ink-500 whitespace-nowrap"><%= Math.round(b.size/1024) %> Ko ·
+                <a class="text-brand-600 hover:underline" href="/parametres/sauvegardes/<%= b.name %>">télécharger</a></span>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+
+    <form method="post" action="/parametres/mot-de-passe" class="card p-6 space-y-3">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h2 class="font-semibold">Mot de passe administrateur</h2>
+      <p class="text-xs text-ink-500">Stocké sous forme hachée (bcrypt) dans la base. 8 caractères minimum.</p>
+      <div><label class="field-label" for="old_password">Mot de passe actuel</label>
+        <input class="field-input" id="old_password" type="password" name="old_password" autocomplete="current-password" required></div>
+      <div><label class="field-label" for="new_password">Nouveau mot de passe</label>
+        <input class="field-input" id="new_password" type="password" name="new_password" autocomplete="new-password" required></div>
+      <button class="btn btn-ghost">Mettre à jour</button>
+    </form>
+
+    <div class="card p-6">
+      <h2 class="font-semibold mb-3">Étages</h2>
+      <ul class="text-sm space-y-1">
+        <% floors.forEach(f => { %><li><%= f.label %><span class="text-ink-500"> — <%= f.short_label %></span></li><% }) %>
+      </ul>
+      <p class="text-xs text-ink-500 mt-3">Ajout d'un étage depuis la page Logements.</p>
+    </div>
+  </div>
+</div>
+<%- include('../partials/foot') %>

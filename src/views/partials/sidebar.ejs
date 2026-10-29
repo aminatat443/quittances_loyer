@@ -1,0 +1,49 @@
+<%
+  const nav = [
+    { href: '/', label: 'Tableau de bord', icon: 'layout-dashboard' },
+    { href: '/quittances/mois', label: 'Quittances du mois', icon: 'calendar-check-2' },
+    { href: '/locataires', label: 'Locataires', icon: 'users' },
+    { href: '/logements', label: 'Logements', icon: 'building-2' },
+    { href: '/paiements', label: 'Paiements', icon: 'wallet' },
+    { href: '/quittances', label: 'Historique des quittances', icon: 'file-text' },
+    { href: '/impression', label: 'Impression groupée', icon: 'printer' },
+    { href: '/calendrier', label: 'Suivi mensuel', icon: 'calendar-days' },
+    { href: '/parametres', label: 'Paramètres', icon: 'settings' },
+  ];
+  const isActive = (href) => {
+    if (href === '/') return path === '/';
+    if (href === '/quittances') return path.startsWith('/quittances/') && !path.startsWith('/quittances/mois')
+      || path === '/quittances';
+    return path.startsWith(href);
+  };
+%>
+<aside id="sidebar" class="no-print fixed inset-y-0 left-0 z-30 w-64 -translate-x-full lg:translate-x-0 lg:static lg:h-auto bg-white border-r border-gray-200 flex flex-col transition-transform duration-200">
+  <div class="h-16 flex items-center gap-2 px-5 border-b border-gray-100">
+    <span class="grid place-items-center w-9 h-9 rounded-lg bg-brand-600 text-white">
+      <i data-lucide="home" class="w-5 h-5"></i>
+    </span>
+    <div class="leading-tight">
+      <p class="font-semibold text-[15px]">Quittances</p>
+      <p class="text-xs text-ink-500"><%= app.owner %></p>
+    </div>
+  </div>
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <% nav.forEach(item => { %>
+      <a href="<%= item.href %>"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                <%= isActive(item.href) ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-gray-50' %>">
+        <i data-lucide="<%= item.icon %>" class="w-[18px] h-[18px] <%= isActive(item.href) ? 'text-brand-600' : 'text-ink-500' %>"></i>
+        <span><%= item.label %></span>
+      </a>
+    <% }) %>
+  </nav>
+  <div class="px-4 py-4 border-t border-gray-100">
+    <form method="post" action="/login/logout">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="flex items-center gap-2 text-sm text-ink-500 hover:text-ink-900 w-full">
+        <i data-lucide="log-out" class="w-4 h-4"></i> Déconnexion
+      </button>
+    </form>
+  </div>
+</aside>
+<div id="sidebar-backdrop" class="no-print hidden fixed inset-0 bg-black/30 z-20 lg:hidden"></div>

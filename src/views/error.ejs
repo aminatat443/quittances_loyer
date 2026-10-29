@@ -1,0 +1,10 @@
+<%- include('partials/shell') %>
+<div class="card p-8 max-w-xl mx-auto text-center">
+  <span class="inline-grid place-items-center w-12 h-12 rounded-xl bg-red-50 text-red-600 mb-4">
+    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+  </span>
+  <h2 class="text-lg font-semibold"><%= title %></h2>
+  <p class="text-sm text-ink-500 mt-2 leading-relaxed"><%= message %></p>
+  <a href="javascript:history.back()" class="btn btn-ghost mt-6">Retour</a>
+</div>
+<%- include('partials/foot') %>

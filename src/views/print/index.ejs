@@ -1,0 +1,131 @@
+<%- include('../partials/shell', { primaryAction: { href: '/quittances/nouvelle', label: 'Générer une quittance', icon: 'file-plus' } }) %>
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const years = []; for (let y = curYear + 1; y >= curYear - 8; y--) years.push(y);
+%>
+<div class="card p-5">
+  <h2 class="font-semibold">Mode 3 — génération mensuelle par lots de trois</h2>
+  <p class="text-sm text-ink-500 mt-1">Choisissez une période, cochez les quittances souhaitées, l'application regroupe automatiquement
+    les documents par lots de trois et indique le nombre de feuilles A4 nécessaires.</p>
+  <form method="get" action="/impression" class="flex flex-wrap items-end gap-3 mt-4">
+    <div>
+      <label class="field-label" for="month">Mois</label>
+      <select class="field-input" id="month" name="month">
+        <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="year">Année</label>
+      <select class="field-input" id="year" name="year">
+        <% years.forEach(y => { %><option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option><% }) %>
+      </select>
+    </div>
+    <button class="btn btn-ghost">Afficher</button>
+  </form>
+</div>
+
+<% if (canGenerate) { %>
+<form method="post" action="/impression/generer-mois" class="card p-5 flex flex-wrap items-center gap-3">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="period_year" value="<%= year %>">
+  <input type="hidden" name="period_month" value="<%= month %>">
+  <div class="flex-1 min-w-[240px]">
+    <p class="text-sm font-medium"><%= canGenerate %> loyer(s) intégralement réglé(s) sans quittance pour <%= fmtPeriode(year, month) %>.</p>
+    <p class="text-xs text-ink-500 mt-1">Génération automatique des quittances correspondantes, sans ressaisie.</p>
+  </div>
+  <button class="btn btn-primary"><i data-lucide="wand-sparkles" class="w-4 h-4"></i> Générer ces quittances</button>
+</form>
+<% } %>
+
+<form id="lot-bar" method="post" action="/impression/apercu" class="card overflow-hidden">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="font-semibold">Quittances de <%= fmtPeriode(year, month) %></h2>
+      <p class="text-xs text-ink-500 mt-1" data-sheet-count>Sélectionnez des quittances pour voir le nombre de feuilles.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="text-sm flex items-center gap-2">
+        <input type="checkbox" data-select-all class="rounded border-gray-300"> Tout cocher
+      </label>
+      <select name="mode" data-print-mode class="field-input w-auto">
+        <option value="trio">Quittances distinctes (3 par feuille)</option>
+        <option value="une">Une quittance par page A4</option>
+        <option value="copies">3 exemplaires d'une même quittance</option>
+      </select>
+      <button type="submit" class="btn btn-ghost"><i data-lucide="eye" class="w-4 h-4"></i> Prévisualiser</button>
+      <button type="submit" formaction="/impression/demander" class="btn btn-primary">
+        <i data-lucide="printer" class="w-4 h-4"></i> Imprimer la sélection</button>
+      <button type="submit" formaction="/impression/pdf" class="btn btn-ghost"
+        <% if (!pdfAvailable) { %>disabled title="Moteur PDF indisponible sur cette machine"<% } %>>
+        <i data-lucide="file-down" class="w-4 h-4"></i> PDF</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead><tr><th></th><th>Numéro</th><th>Locataire</th><th>Logement</th><th>Montant</th><th>Solde</th><th>Statut</th></tr></thead>
+      <tbody>
+        <% if (!receipts.length) { %>
+          <tr><td colspan="7" class="py-10 text-center text-ink-500">
+            Aucune quittance générée pour <%= fmtPeriode(year, month) %>.
+            <a href="/quittances/nouvelle" class="block text-brand-600 hover:underline font-medium mt-2">Générer une quittance</a>
+          </td></tr>
+        <% } %>
+        <% receipts.forEach((r, i) => { %>
+          <tr>
+            <td data-label=""><input type="checkbox" name="ids" value="<%= r.id %>" form="lot-bar" data-selectable class="rounded border-gray-300"
+              <%= r.is_full ? 'checked' : '' %>></td>
+            <td data-label="Numéro" class="font-medium"><a class="hover:text-brand-700" href="/quittances/<%= r.id %>"><%= r.number %></a></td>
+            <td data-label="Locataire"><%= r.snap.tenant_name %></td>
+            <td data-label="Logement"><%= r.snap.floor_label %> · <%= r.snap.unit_name %></td>
+            <td data-label="Montant"><%= r.total_paid_fr %></td>
+            <td data-label="Solde"><%= r.balance_fr %></td>
+            <td data-label="Statut"><span class="badge <%= r.is_full ? 'badge-paid' : r.is_avis ? 'badge-info' : 'badge-partial' %>">
+              <%= r.is_full ? 'Intégral' : r.is_avis ? 'Non payé' : 'Partiel' %></span></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <p class="px-5 py-3 text-xs text-ink-500 border-t border-gray-100">
+    « Prévisualiser » n'enregistre rien ; « Imprimer la sélection » ouvre l'aperçu puis la boîte d'impression
+    et consigne une demande d'impression ; « PDF » produit un fichier reprenant exactement le modèle officiel.
+  </p>
+</form>
+
+<div class="grid md:grid-cols-2 gap-4">
+  <div class="card p-5">
+    <h3 class="font-semibold mb-2">Mode 1 — quittance individuelle</h3>
+    <p class="text-sm text-ink-500 mb-4">Imprimer une seule quittance, avec son numéro et son montant.</p>
+    <select id="single-receipt" class="field-input mb-3">
+      <option value="">— Choisir une quittance —</option>
+      <% receipts.forEach(r => { %><option value="<%= r.id %>"><%= r.number %> · <%= r.snap.tenant_name %> · <%= r.total_paid_fr %></option><% }) %>
+    </select>
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-ghost" data-open-print data-mode="une"><i data-lucide="file-text" class="w-4 h-4"></i> 1 page</button>
+      <button class="btn btn-ghost" data-open-print data-mode="trio"><i data-lucide="printer" class="w-4 h-4"></i> 3 par feuille</button>
+      <button class="btn btn-ghost" data-open-print data-mode="copies"><i data-lucide="copy" class="w-4 h-4"></i> 3 exemplaires</button>
+    </div>
+    <p class="text-xs text-ink-500 mt-3">Ces boutons ouvrent d'abord l'aperçu : la boîte d'impression se déclenche
+      depuis l'aperçu, où l'on peut aussi confirmer l'impression physique.</p>
+    <p class="text-xs text-ink-500 mt-2">L'option « 3 exemplaires » n'imprime trois fois le même document que si vous la demandez explicitement.</p>
+  </div>
+  <div class="card p-5">
+    <h3 class="font-semibold mb-2">Mode 2 — impression groupée</h3>
+    <p class="text-sm text-ink-500 leading-relaxed">Cochez jusqu'à trois quittances distinctes : elles tiennent sur une même feuille A4,
+      séparées par un pointillé de découpe. Les emplacements inutilisés restent blancs.</p>
+    <p class="text-sm text-ink-500 mt-3">Au-delà de trois documents, l'application crée autant de feuilles que nécessaire et
+      les envoie en une seule opération d'impression.</p>
+    <p class="text-sm text-ink-500 mt-3">Les interfaces, menus et boutons disparaissent automatiquement à l'impression :
+      seules les quittances sortent sur la feuille, en noir et blanc comme en couleur.</p>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('[data-open-print]').forEach(btn => btn.addEventListener('click', () => {
+    const sel = document.getElementById('single-receipt');
+    if (!sel.value) { alert('Sélectionnez d\'abord une quittance.'); return; }
+    window.location = `/impression/apercu?ids=${sel.value}&mode=${btn.dataset.mode}`;
+  }));
+</script>
+<%- include('../partials/foot') %>

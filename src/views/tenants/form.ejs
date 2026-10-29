@@ -1,0 +1,89 @@
+<%- include('../partials/shell') %>
+<% const t = tenant || {}; const preselected = (typeof query !== 'undefined' && query.unit_id) ? String(query.unit_id) : ''; %>
+<div class="max-w-2xl">
+  <form method="post" action="<%= tenant ? '/locataires/' + tenant.id + '/modifier' : '/locataires/nouveau' %>" class="card p-6 space-y-5">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="field-label" for="first_name">Prénom(s)</label>
+        <input class="field-input" id="first_name" name="first_name" value="<%= t.first_name || '' %>" required>
+      </div>
+      <div>
+        <label class="field-label" for="last_name">Nom</label>
+        <input class="field-input" id="last_name" name="last_name" value="<%= t.last_name || '' %>" required>
+      </div>
+      <div>
+        <label class="field-label" for="phone">Téléphone (facultatif)</label>
+        <input class="field-input" id="phone" name="phone" value="<%= t.phone || '' %>" inputmode="tel">
+        <p class="text-xs text-ink-500 mt-1">Sert uniquement à préparer un brouillon WhatsApp.</p>
+      </div>
+      <div>
+        <label class="field-label" for="email">Adresse e-mail (facultatif)</label>
+        <input class="field-input" id="email" name="email" type="email" value="<%= t.email || '' %>" inputmode="email">
+        <p class="text-xs text-ink-500 mt-1">Utilisée pour préremplir un e-mail de partage, jamais envoyée automatiquement.</p>
+      </div>
+      <div>
+        <label class="field-label" for="address">Adresse / complément (facultatif)</label>
+        <input class="field-input" id="address" name="address" value="<%= t.address || '' %>">
+      </div>
+
+      <% if (!tenant) { %>
+        <div class="sm:col-span-2">
+          <label class="field-label" for="unit_id">Logement attribué</label>
+          <select class="field-input" id="unit_id" name="unit_id" required
+                  data-units="<%= JSON.stringify(units.map(u => ({ id: u.id, rent: u.default_rent, floor: u.floor_label, type: u.type_label, name: u.name }))) %>">
+            <option value="">— Sélectionner un logement disponible —</option>
+            <% units.filter(u => u.status !== 'occupied').forEach(u => { %>
+              <option value="<%= u.id %>" <%= preselected === String(u.id) ? 'selected' : '' %>><%= u.floor_label %> · <%= u.name %> · <%= u.type_label %> · <%= fmtFcfa(u.default_rent) %></option>
+            <% }) %>
+          </select>
+          <p id="unit-summary" class="text-xs text-ink-500 mt-2">Étage, type et loyer de référence s'affichent après sélection.</p>
+        </div>
+        <div>
+          <label class="field-label" for="start_date">Date d'entrée</label>
+          <input class="field-input" id="start_date" type="date" name="start_date" value="<%= today %>">
+        </div>
+        <div>
+          <label class="field-label" for="monthly_rent">Loyer mensuel convenu (FCFA)</label>
+          <input class="field-input" id="monthly_rent" type="number" min="0" step="500" name="monthly_rent" value="">
+          <p class="text-xs text-ink-500 mt-1">Repris du tarif de référence ; modifiable pour ce locataire uniquement.</p>
+        </div>
+      <% } else { %>
+        <div class="sm:col-span-2 rounded-lg bg-gray-50 border border-gray-100 p-4">
+          <p class="text-sm font-medium"><%= open ? `${open.unit_name} · ${open.floor_label} · ${open.type_label}` : 'Aucune location en cours' %></p>
+          <% if (open) { %>
+            <label class="field-label mt-3" for="monthly_rent">Loyer mensuel convenu (FCFA)</label>
+            <input class="field-input" id="monthly_rent" type="number" min="0" step="500" name="monthly_rent" value="<%= open.monthly_rent %>">
+            <p class="text-xs text-ink-500 mt-1">Ce changement ne modifie ni les quittances déjà émises, ni les tarifs des autres logements.</p>
+          <% } %>
+        </div>
+      <% } %>
+
+      <div class="sm:col-span-2">
+        <label class="field-label" for="notes">Notes internes</label>
+        <textarea class="field-input" id="notes" name="notes" rows="3"><%= t.notes || '' %></textarea>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button class="btn btn-primary">Enregistrer</button>
+      <a href="<%= back %>" class="btn btn-ghost">Annuler</a>
+    </div>
+  </form>
+</div>
+<script>
+  const sel = document.getElementById('unit_id');
+  if (sel) {
+    const units = JSON.parse(sel.dataset.units || '[]');
+    const out = document.getElementById('unit-summary');
+    const rentInput = document.getElementById('monthly_rent');
+    const sync = () => {
+      const u = units.find(x => String(x.id) === sel.value);
+      if (!u) { out.textContent = 'Aucun logement sélectionné.'; return; }
+      out.innerHTML = `<strong>${u.name}</strong> — ${u.floor} · ${u.type} · tarif de référence ${new Intl.NumberFormat('fr-FR').format(u.rent)} FCFA`;
+      rentInput.value = u.rent;
+    };
+    sel.addEventListener('change', sync);
+    if (sel.value) sync();
+  }
+</script>
+<%- include('../partials/foot') %>

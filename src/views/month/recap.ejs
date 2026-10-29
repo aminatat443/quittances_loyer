@@ -1,0 +1,154 @@
+<%- include('../partials/shell') %>
+
+<div class="flex flex-wrap items-center gap-3">
+  <a href="/quittances/mois?year=<%= year %>&month=<%= month %>" class="btn btn-ghost">
+    <i data-lucide="arrow-left" class="w-4 h-4"></i> Retour au mois
+  </a>
+  <div class="flex-1 min-w-[200px]">
+    <h1 class="text-xl font-semibold">Récapitulatif — <%= periodLabel %></h1>
+    <p class="text-xs text-ink-500 mt-0.5"><%= counts.docs %> document(s) prêt(s) à être vérifié(s), imprimé(s) ou partagé(s).</p>
+  </div>
+  <form method="post" action="/quittances/mois/toutes">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="period_year" value="<%= year %>">
+    <input type="hidden" name="period_month" value="<%= month %>">
+    <button class="btn btn-ghost"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Relancer la génération</button>
+  </form>
+</div>
+
+<div class="card p-4 bg-brand-50/40">
+  <p class="text-sm text-ink-700 leading-relaxed">
+    <strong>Vérifiez</strong> les noms, étages, logements et montants ci-dessous avant d'imprimer.
+    Cette page fait suite à une génération groupée : <strong>aucun paiement n'a été enregistré</strong> et
+    <strong>aucun message n'a été envoyé</strong> aux locataires. WhatsApp et e-mail ouvrent un brouillon
+    (ou l'application de messagerie) et le PDF doit être joint manuellement tant que le serveur SMTP
+    n'est pas configuré. Chaque démarche est journalisée sur la fiche du document, avec son statut réel :
+    <em>préparé</em> tant qu'aucune confirmation fiable n'existe.
+  </p>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Quittances intégrales</p>
+    <p class="text-lg font-semibold mt-1 text-brand-700"><%= counts.full %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Reçus partiels</p>
+    <p class="text-lg font-semibold mt-1"><%= counts.partial %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Avis de loyer</p>
+    <p class="text-lg font-semibold mt-1"><%= counts.avis %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Feuilles A4 estimées</p>
+    <p class="text-lg font-semibold mt-1"><%= counts.sheets %></p></div>
+</div>
+
+<% if (unpaid.length) { %>
+  <div class="card p-5">
+    <h2 class="font-semibold flex items-center gap-2"><i data-lucide="triangle-alert" class="w-4 h-4 text-amber-600"></i>
+      Paiements non enregistrés (<%= unpaid.length %>)</h2>
+    <p class="text-xs text-ink-500 mt-1">Un avis de loyer a été préparé à la place d'une quittance. Encaissez le paiement pour obtenir la quittance.</p>
+    <ul class="mt-3 grid sm:grid-cols-2 gap-2 text-sm">
+      <% unpaid.forEach(row => { %>
+        <li class="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+          <span><%= row.tenant_name %> — <%= row.floor_label %> · <%= row.unit_name %></span>
+          <span class="flex items-center gap-3 shrink-0">
+            <span class="text-ink-500"><%= fmtFcfa(row.balance) %> dus</span>
+            <a href="/quittances/mois?year=<%= year %>&month=<%= month %>" class="text-brand-600 hover:underline">Encaisser</a>
+          </span>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<% if (docs.length) { %>
+  <div class="card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold">Impression et partage</h2>
+        <p class="text-xs text-ink-500 mt-1" data-sheet-count>Sélectionnez des documents pour voir le nombre de feuilles.</p>
+      </div>
+      <form id="lot-bar" method="post" action="/impression/demander" class="flex flex-wrap items-center gap-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="period_year" value="<%= year %>">
+        <input type="hidden" name="period_month" value="<%= month %>">
+        <label class="text-sm flex items-center gap-2">
+          <input type="checkbox" data-select-all class="rounded border-gray-300"> Tout cocher
+        </label>
+        <label class="text-sm flex items-center gap-2">
+          Mise en page
+          <select class="field-input w-auto" name="mode" data-print-mode>
+            <option value="trio">3 documents / feuille</option>
+            <option value="une">1 document par page</option>
+            <option value="copies">3 exemplaires identiques</option>
+          </select>
+        </label>
+        <button type="submit" class="btn btn-primary"><i data-lucide="printer" class="w-4 h-4"></i>
+          Imprimer les sélectionnés</button>
+        <button type="submit" formaction="/impression/pdf" class="btn btn-ghost"
+          <% if (!pdfAvailable) { %>disabled title="Moteur PDF indisponible sur cette machine"<% } %>>
+          <i data-lucide="file-down" class="w-4 h-4"></i> Télécharger en PDF</button>
+        <button type="submit" name="all" value="1" formaction="/impression/demander" class="btn btn-ghost">
+          <i data-lucide="layers" class="w-4 h-4"></i> Tout le mois</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table class="data stack">
+        <thead>
+          <tr><th></th><th>Locataire</th><th>Étage · Logement</th><th>Document</th>
+              <th>Numéro</th><th>Montant</th><th>Solde</th><th>Partager</th></tr>
+        </thead>
+        <tbody>
+          <% docs.forEach(d => { %>
+            <tr>
+              <td data-label="">
+                <input type="checkbox" name="ids" value="<%= d.receipt.id %>" form="lot-bar" data-selectable class="rounded border-gray-300"
+                       <%= d.receipt.is_avis ? '' : 'checked' %>>
+              </td>
+              <td data-label="Locataire"><a href="/locataires/<%= d.row.tenant_id %>" class="font-medium hover:text-brand-700"><%= d.row.tenant_name %></a></td>
+              <td data-label="Logement"><%= d.row.floor_label %> · <%= d.row.unit_name %></td>
+              <td data-label="Document">
+                <span class="badge <%= d.receipt.is_full ? 'badge-paid' : d.receipt.is_avis ? 'badge-info' : 'badge-partial' %>"><%= d.label %></span>
+              </td>
+              <td data-label="Numéro"><a href="/quittances/<%= d.receipt.id %>" class="text-brand-600 hover:underline"><%= d.receipt.number %></a></td>
+              <td data-label="Montant" class="font-medium"><%= d.receipt.is_avis ? d.receipt.balance_fr : d.receipt.total_paid_fr %></td>
+              <td data-label="Solde"><%= d.receipt.balance_fr %></td>
+              <td data-label="Partager">
+                <form method="post" action="/impression/demander" target="_blank" rel="noopener noreferrer" class="flex flex-wrap gap-2 justify-end items-start">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="ids" value="<%= d.receipt.id %>">
+                  <input type="hidden" name="mode" value="une">
+                  <a href="/quittances/<%= d.receipt.id %>" class="btn btn-ghost !px-2.5 !py-1">
+                    <i data-lucide="eye" class="w-3.5 h-3.5"></i> Ouvrir</a>
+                  <% if (d.whatsapp) { %>
+                    <button type="submit" formaction="/quittances/<%= d.receipt.id %>/whatsapp" class="btn btn-ghost !px-2.5 !py-1">
+                      <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp</button>
+                  <% } else { %>
+                    <a href="/locataires/<%= d.row.tenant_id %>" class="btn btn-ghost !px-2.5 !py-1 text-amber-700">
+                      <i data-lucide="phone" class="w-3.5 h-3.5"></i> Téléphone à renseigner</a>
+                  <% } %>
+                  <% if (d.email) { %>
+                    <button type="submit" formaction="/quittances/<%= d.receipt.id %>/email" class="btn btn-ghost !px-2.5 !py-1">
+                      <i data-lucide="mail" class="w-3.5 h-3.5"></i> E-mail</button>
+                  <% } else { %>
+                    <a href="/locataires/<%= d.row.tenant_id %>" class="btn btn-ghost !px-2.5 !py-1 text-amber-700">
+                      <i data-lucide="at-sign" class="w-3.5 h-3.5"></i> E-mail à renseigner</a>
+                  <% } %>
+                  <button type="submit" class="btn btn-ghost !px-2.5 !py-1"><i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimer</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="px-5 py-3 text-xs text-ink-500 border-t border-gray-100">
+      Trois documents distincts tiennent sur une feuille A4, séparés par un pointillé de découpe :
+      3 quittances = 1 feuille, 6 = 2 feuilles, 10 = 4 feuilles dont une partiellement remplie.
+      Les actions ci-dessus ouvrent un brouillon ou une demande d'impression : elles n'envoient et
+      n'impriment rien seules, et chaque démarche reste à confirmer sur la fiche du document.
+    </p>
+  </div>
+<% } else { %>
+  <div class="card p-8 text-center">
+    <p class="text-ink-500">Aucun document n'est prêt pour <%= periodLabel %>.</p>
+    <a href="/quittances/mois?year=<%= year %>&month=<%= month %>" class="btn btn-primary mt-4 inline-flex">Générer les documents du mois</a>
+  </div>
+<% } %>
+<%- include('../partials/foot') %>

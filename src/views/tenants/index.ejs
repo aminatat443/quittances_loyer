@@ -1,0 +1,71 @@
+<%- include('../partials/shell', { primaryAction: { href: '/locataires/nouveau', label: 'Ajouter un locataire', icon: 'user-plus' } }) %>
+<form method="get" action="/locataires" class="card p-4 flex flex-wrap items-end gap-3">
+  <div class="flex-1 min-w-[180px]">
+    <label class="field-label" for="q">Recherche</label>
+    <input class="field-input" id="q" name="q" value="<%= filters.q || '' %>" placeholder="Nom, prénom, n° de logement, étage…">
+  </div>
+  <div>
+    <label class="field-label" for="floor_id">Étage</label>
+    <select class="field-input" id="floor_id" name="floor_id">
+      <option value="">Tous</option>
+      <% floors.forEach(f => { %><option value="<%= f.id %>" <%= String(filters.floor_id) === String(f.id) ? 'selected' : '' %>><%= f.label %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="type_code">Type</label>
+    <select class="field-input" id="type_code" name="type_code">
+      <option value="">Tous</option>
+      <% types.forEach(t => { %><option value="<%= t.code %>" <%= filters.type_code === t.code ? 'selected' : '' %>><%= t.code %> — <%= t.label %></option><% }) %>
+    </select>
+  </div>
+  <div>
+    <label class="field-label" for="status">Statut</label>
+    <select class="field-input" id="status" name="status">
+      <option value="">Actifs</option>
+      <option value="archived" <%= filters.status === 'archived' ? 'selected' : '' %>>Anciens locataires</option>
+    </select>
+  </div>
+  <button class="btn btn-ghost">Filtrer</button>
+  <a href="/locataires" class="btn btn-ghost">Réinitialiser</a>
+</form>
+
+<div class="card overflow-hidden">
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead>
+        <tr>
+          <th>Locataire</th><th>Logement</th><th>Étage</th><th>Type</th><th>Loyer</th><th>Entrée</th><th>Téléphone</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!tenants.length) { %>
+          <tr><td colspan="8" class="py-10 text-center text-ink-500">
+            Aucun locataire ne correspond.<br>
+            <a href="/locataires/nouveau" class="text-brand-600 hover:underline font-medium mt-2 inline-block">Ajouter un locataire</a>
+          </td></tr>
+        <% } %>
+        <% tenants.forEach(t => { %>
+          <tr>
+            <td data-label="Locataire">
+              <a href="/locataires/<%= t.id %>" class="font-medium text-ink-900 hover:text-brand-700"><%= t.first_name %> <%= t.last_name %></a>
+              <% if (t.status === 'archived') { %><span class="badge badge-pending ml-1">Archivé</span><% } %>
+            </td>
+            <td data-label="Logement"><%= t.unit_name || '—' %></td>
+            <td data-label="Étage"><%= t.floor_label || '—' %></td>
+            <td data-label="Type"><%= t.type_label || '—' %></td>
+            <td data-label="Loyer"><%= t.current_rent != null ? fmtFcfa(t.current_rent) : '—' %></td>
+            <td data-label="Entrée"><%= t.tenancy_start ? fmtDate(t.tenancy_start) : '—' %></td>
+            <td data-label="Téléphone"><%= t.phone || '—' %></td>
+            <td data-label="">
+              <div class="flex gap-3 justify-end">
+                <a href="/quittances/nouvelle?tenant_id=<%= t.id %>" class="text-xs text-brand-600 hover:underline">Quittance</a>
+                <a href="/locataires/<%= t.id %>/modifier" class="text-xs text-ink-500 hover:text-ink-900">Modifier</a>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

@@ -1,0 +1,22 @@
+<% const actions = (typeof primaryAction !== 'undefined' && primaryAction) ? primaryAction : null; %>
+<header class="no-print sticky top-0 z-10 bg-paper/90 backdrop-blur border-b border-gray-200">
+  <div class="flex items-center gap-3 px-4 sm:px-6 lg:px-8 h-16">
+    <button id="menu-toggle" class="lg:hidden p-2 -ml-1 rounded-lg text-ink-700 hover:bg-gray-100" aria-label="Menu">
+      <i data-lucide="menu" class="w-5 h-5"></i>
+    </button>
+    <h1 class="text-lg font-semibold tracking-tight truncate"><%= title %></h1>
+    <div class="flex-1"></div>
+    <form method="get" action="/locataires" class="hidden md:block relative">
+      <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"></i>
+      <input name="q" value="<%= query.q || '' %>" placeholder="Rechercher un locataire…"
+             class="w-64 pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-brand-300 focus:border-brand-300 outline-none">
+    </form>
+    <% if (actions) { %>
+      <a href="<%= actions.href %>"
+         class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium shadow-card hover:bg-brand-700 active:scale-[.98] transition">
+        <i data-lucide="<%= actions.icon %>" class="w-4 h-4"></i>
+        <span class="hidden sm:inline"><%= actions.label %></span>
+      </a>
+    <% } %>
+  </div>
+</header>

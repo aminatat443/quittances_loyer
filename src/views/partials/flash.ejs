@@ -1,0 +1,14 @@
+<% if (flash.ok || flash.err) { %>
+  <div class="no-print px-4 sm:px-6 lg:px-8 pt-4">
+    <% if (flash.ok) { %>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-lg bg-brand-50 border border-brand-100 text-brand-700 text-sm">
+        <i data-lucide="check-circle-2" class="w-4 h-4 mt-0.5 shrink-0"></i><span><%= flash.ok %></span>
+      </div>
+    <% } %>
+    <% if (flash.err) { %>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm">
+        <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0"></i><span><%= flash.err %></span>
+      </div>
+    <% } %>
+  </div>
+<% } %>

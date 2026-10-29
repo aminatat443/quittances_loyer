@@ -1,0 +1,87 @@
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const YEARS = (() => { const a = []; for (let y = curYear + 1; y >= curYear - 8; y--) a.push(y); return a; })();
+  const preselected = (typeof query !== 'undefined' && query.tenant_id) ? String(query.tenant_id) : '';
+  const sIcon = typeof locals.submitIcon !== 'undefined' ? locals.submitIcon : 'file-plus';
+  const sLabel = typeof locals.submitLabel !== 'undefined' ? locals.submitLabel : 'Enregistrer et générer la quittance';
+  const sCancel = typeof locals.cancelHref !== 'undefined' ? locals.cancelHref : '/';
+%>
+<form method="post" action="/paiements" data-prefill-form class="card p-6 space-y-5">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div>
+    <h2 class="font-semibold">Locataire et période</h2>
+    <p class="text-xs text-ink-500 mt-1">Le logement, le loyer attendu, le déjà-payé et le solde se préremplissent automatiquement.</p>
+  </div>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <div class="sm:col-span-3">
+      <label class="field-label" for="tenancy_id">Locataire</label>
+      <select class="field-input" id="tenancy_id" name="tenancy_id" required>
+        <option value="">— Sélectionner —</option>
+        <% tenants.forEach(t => { %>
+          <option value="<%= t.tenancy_id %>" data-tenant-id="<%= t.id %>" <%= preselected === String(t.id) ? 'selected' : '' %>>
+            <%= t.last_name %> <%= t.first_name %> · <%= t.unit_name %> (<%= t.floor_label %>)
+          </option>
+        <% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="period_month">Mois concerné</label>
+      <select class="field-input" id="period_month" name="period_month">
+        <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= curMonth === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="period_year">Année</label>
+      <select class="field-input" id="period_year" name="period_year">
+        <% YEARS.forEach(y => { %><option value="<%= y %>" <%= curYear === y ? 'selected' : '' %>><%= y %></option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label class="field-label" for="paid_at">Date du paiement</label>
+      <input class="field-input" id="paid_at" type="date" name="paid_at" value="<%= today %>">
+    </div>
+  </div>
+
+  <div class="rounded-lg bg-gray-50 border border-gray-100 p-4" data-prefill-box>
+    <p class="text-sm text-ink-500">Récapitulatif de la période : attendu, déjà payé, solde, quittances existantes.</p>
+  </div>
+  <input type="hidden" name="monthly_rent" value="">
+
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div>
+      <label class="field-label" for="amount">Montant reçu (FCFA)</label>
+      <input class="field-input" id="amount" name="amount" type="number" min="0" step="500" required placeholder="40000">
+    </div>
+    <div>
+      <label class="field-label" for="method">Mode de paiement</label>
+      <select class="field-input" id="method" name="method">
+        <% Object.keys(methods).forEach(k => { %><option value="<%= k %>"><%= methods[k] %></option><% }) %>
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="field-label" for="observations">Observations (facultatif)</label>
+      <input class="field-input" id="observations" name="observations" placeholder="Ex. : règlement en deux fois…">
+    </div>
+  </div>
+
+  <div>
+    <label class="field-label">Document délivré</label>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="flex items-start gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-brand-300">
+        <input type="radio" name="generate" value="auto" class="mt-1" checked>
+        <span class="text-sm"><strong>Automatique</strong><br>
+          <span class="text-ink-500">Quittance si le loyer est intégral, reçu de paiement partiel sinon.</span></span>
+      </label>
+      <label class="flex items-start gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer hover:border-brand-300">
+        <input type="radio" name="generate" value="none" class="mt-1">
+        <span class="text-sm"><strong>Sans document</strong><br>
+          <span class="text-ink-500">Enregistre seulement le paiement.</span></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="flex gap-3 items-center">
+    <button class="btn btn-primary"><i data-lucide="<%= sIcon %>" class="w-4 h-4"></i> <%= sLabel %></button>
+    <a href="<%= sCancel %>" class="btn btn-ghost">Annuler</a>
+  </div>
+</form>

@@ -1,0 +1,138 @@
+<%- include('../partials/shell', { primaryAction: { href: '/quittances/nouvelle?tenant_id=' + tenant.id, label: 'Générer une quittance', icon: 'file-plus' } }) %>
+<div class="grid lg:grid-cols-3 gap-4">
+  <div class="card p-6 lg:col-span-2">
+    <div class="flex flex-wrap items-start gap-4">
+      <span class="grid place-items-center w-14 h-14 rounded-xl bg-brand-50 text-brand-700 text-lg font-semibold">
+        <%= (tenant.first_name[0] || '') + (tenant.last_name[0] || '') %>
+      </span>
+      <div class="flex-1 min-w-[200px]">
+        <h2 class="text-xl font-semibold tracking-tight"><%= tenant.first_name %> <%= tenant.last_name %></h2>
+        <p class="text-sm text-ink-500 mt-1">
+          <%= tenant.phone ? 'Tél. ' + tenant.phone : 'Téléphone non renseigné' %>
+          <%= tenant.email ? ' · ' + tenant.email : '' %>
+          <%= tenant.address ? ' · ' + tenant.address : '' %>
+        </p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <% if (tenant.status === 'active') { %><span class="badge badge-paid">Actif</span>
+          <% } else { %><span class="badge badge-pending">Ancien locataire</span><% } %>
+          <% if (open) { %><span class="badge badge-info"><%= open.unit_name %> · <%= open.floor_label %></span><% } %>
+        </div>
+      </div>
+    </div>
+
+    <% if (open) { %>
+      <dl class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Type</dt><dd class="font-medium mt-1"><%= open.type_label %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Loyer convenu</dt><dd class="font-medium mt-1"><%= fmtFcfa(open.monthly_rent) %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Entrée</dt><dd class="font-medium mt-1"><%= fmtDate(open.start_date) %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Sortie</dt><dd class="font-medium mt-1">—</dd></div>
+      </dl>
+    <% } %>
+
+    <% if (tenant.notes) { %>
+      <div class="mt-6 rounded-lg bg-amber-50 border border-amber-100 p-4">
+        <p class="text-xs uppercase tracking-wide text-amber-800 font-semibold">Notes internes</p>
+        <p class="text-sm text-amber-900 mt-1 whitespace-pre-line"><%= tenant.notes %></p>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="card p-5">
+    <h3 class="font-semibold mb-3">Actions</h3>
+    <div class="space-y-2">
+      <a href="/locataires/<%= tenant.id %>/modifier" class="btn btn-ghost w-full justify-start"><i data-lucide="pencil" class="w-4 h-4"></i> Modifier la fiche</a>
+      <a href="/paiements/nouveau?tenant_id=<%= tenant.id %>" class="btn btn-ghost w-full justify-start"><i data-lucide="wallet" class="w-4 h-4"></i> Enregistrer un paiement</a>
+
+      <% if (open) { %>
+        <form method="post" action="/locataires/<%= tenant.id %>/depart" class="pt-1"
+              data-confirm="Enregistrer le départ de ce locataire ? Son historique de paiements et de quittances sera conservé.">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field-label" for="departure_date">Date de départ</label>
+          <input class="field-input mb-2" id="departure_date" type="date" name="departure_date" value="<%= today %>" required>
+          <button class="btn btn-danger w-full justify-start"><i data-lucide="log-out" class="w-4 h-4"></i> Enregistrer le départ</button>
+        </form>
+      <% } else { %>
+        <form method="post" action="/locataires/<%= tenant.id %>/relogement" class="pt-2 border-t border-gray-100">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field-label" for="unit_id">Réattribuer un logement</label>
+          <select class="field-input mb-2" id="unit_id" name="unit_id" required>
+            <option value="">— Logement disponible —</option>
+            <% availableUnits.forEach(u => { %>
+              <option value="<%= u.id %>"><%= u.floor_label %> · <%= u.name %> · <%= fmtFcfa(u.default_rent) %></option>
+            <% }) %>
+          </select>
+          <label class="field-label" for="start_date">Date d'entrée</label>
+          <input class="field-input mb-2" id="start_date" type="date" name="start_date" value="<%= today %>">
+          <button class="btn btn-primary w-full justify-start"><i data-lucide="key-round" class="w-4 h-4"></i> Réattribuer</button>
+          <p class="text-xs text-ink-500 mt-2">L'ancienne occupation et ses documents restent consultables.</p>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<% periods.forEach(group => { %>
+  <div class="card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
+      <h3 class="font-semibold">Occupation — <%= group.tenancy.unit_name %> (<%= group.tenancy.floor_label %>)</h3>
+      <span class="text-xs text-ink-500">du <%= fmtDate(group.tenancy.start_date) %> au <%= group.tenancy.end_date ? fmtDate(group.tenancy.end_date) : 'jour' %>
+        · loyer <%= fmtFcfa(group.tenancy.monthly_rent) %></span>
+    </div>
+    <div class="table-wrap">
+      <table class="data stack">
+        <thead><tr><th>Mois</th><th>Attendu</th><th>Payé</th><th>Solde</th><th>Statut</th></tr></thead>
+        <tbody>
+          <% if (!group.rows.length) { %><tr><td colspan="5" class="py-6 text-center text-ink-500">Aucun paiement enregistré pour cette occupation.</td></tr><% } %>
+          <% group.rows.forEach(r => { %>
+            <tr>
+              <td data-label="Mois" class="font-medium"><%= r.label %></td>
+              <td data-label="Attendu"><%= fmtFcfa(r.expected) %></td>
+              <td data-label="Payé"><%= fmtFcfa(r.paid) %></td>
+              <td data-label="Solde"><%= fmtFcfa(r.balance) %></td>
+              <td data-label="Statut">
+                <span class="badge <%= r.status === 'payé' ? 'badge-paid' : r.status === 'partiel' ? 'badge-partial' : 'badge-pending' %>"><%= r.status %></span>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% }) %>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100">
+    <h3 class="font-semibold">Quittances et reçus</h3>
+    <p class="text-xs text-ink-500 mt-1">Réimpression sans ressaisie : chaque document conserve ses données d'origine.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data stack">
+      <thead><tr><th>Numéro</th><th>Type</th><th>Mois</th><th>Montant</th><th>Solde</th><th>Émis le</th><th></th></tr></thead>
+      <tbody>
+        <% if (!receipts.length) { %><tr><td colspan="7" class="py-8 text-center text-ink-500">Aucun document généré pour ce locataire.</td></tr><% } %>
+        <% receipts.forEach(r => { %>
+          <tr>
+            <td data-label="Numéro" class="font-medium"><%= r.number %></td>
+            <td data-label="Type">
+              <span class="badge <%= r.type === 'avis_loyer' ? 'badge-info' : r.type === 'recu_partiel' ? 'badge-partial' : 'badge-paid' %>">
+                <%= r.type === 'avis_loyer' ? 'Avis de loyer' : r.type === 'recu_partiel' ? 'Reçu partiel'
+                  : r.type === 'quittance_definitive' ? 'Quittance définitive' : 'Quittance' %>
+              </span>
+            </td>
+            <td data-label="Mois"><%= fmtPeriode(r.period_year, r.period_month) %></td>
+            <td data-label="Montant"><%= fmtFcfa(r.total_paid) %></td>
+            <td data-label="Solde"><%= fmtFcfa(r.balance) %></td>
+            <td data-label="Émis le"><%= fmtDate(String(r.issued_at).slice(0, 10)) %></td>
+            <td data-label="">
+              <div class="flex gap-3 justify-end text-xs">
+                <a href="/quittances/<%= r.id %>" class="text-brand-600 hover:underline">Consulter</a>
+                <a href="/impression/apercu?ids=<%= r.id %>" class="text-ink-500 hover:text-ink-900">Réimprimer</a>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/foot') %>

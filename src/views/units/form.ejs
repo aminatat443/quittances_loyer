@@ -1,0 +1,73 @@
+<%- include('../partials/shell') %>
+<% const u = unit || {}; %>
+<div class="max-w-2xl">
+  <form method="post" action="<%= unit ? '/logements/' + unit.id + '/modifier' : '/logements/nouveau' %>" class="card p-6 space-y-5">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="field-label" for="name">Numéro ou nom du logement</label>
+        <input class="field-input" id="name" name="name" value="<%= u.name || '' %>" placeholder="A1, Chambre 2…" required>
+      </div>
+      <div>
+        <label class="field-label" for="floor_id">Étage</label>
+        <select class="field-input" id="floor_id" name="floor_id" required>
+          <% floors.forEach(f => { %><option value="<%= f.id %>" <%= u.floor_id === f.id ? 'selected' : '' %>><%= f.label %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="unit_type_code">Type de logement</label>
+        <select class="field-input" id="unit_type_code" name="unit_type_code" data-type-prices="<%= JSON.stringify(types.map(t => [t.code, t.default_rent, t.label])) %>">
+          <% types.forEach(t => { %><option value="<%= t.code %>" <%= u.unit_type_code === t.code ? 'selected' : '' %>><%= t.code %> — <%= t.label %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="default_rent">Loyer mensuel de référence (FCFA)</label>
+        <input class="field-input" id="default_rent" type="number" min="0" step="500" name="default_rent" value="<%= u.default_rent != null ? u.default_rent : 20000 %>">
+      </div>
+      <div>
+        <label class="field-label" for="status">Statut</label>
+        <select class="field-input" id="status" name="status" <%= unit && unit.status === 'occupied' ? 'disabled' : '' %>>
+          <option value="available" <%= (u.status || 'available') === 'available' ? 'selected' : '' %>>Disponible</option>
+          <option value="occupied" <%= u.status === 'occupied' ? 'selected' : '' %>>Occupé</option>
+          <option value="unavailable" <%= u.status === 'unavailable' ? 'selected' : '' %>>Indisponible</option>
+        </select>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="field-label" for="notes">Notes facultatives</label>
+        <textarea class="field-input" id="notes" name="notes" rows="3"><%= u.notes || '' %></textarea>
+      </div>
+    </div>
+    <% if (unit && unit.status === 'occupied') { %>
+      <p class="text-sm rounded-lg bg-blue-50 border border-blue-100 text-blue-800 px-3 py-2">
+        Logement occupé : le statut est piloté par les locations. Le loyer affiché reste le tarif de référence ;
+        le loyer convenu avec le locataire actuel est modifiable sur sa fiche.
+      </p>
+      <label class="flex items-center gap-2 text-sm text-ink-700">
+        <input type="checkbox" name="sync_rent" value="1" class="rounded border-gray-300">
+        Appliquer aussi ce nouveau tarif de référence au locataire en cours
+      </label>
+    <% } %>
+    <div class="flex gap-3">
+      <button class="btn btn-primary">Enregistrer</button>
+      <a href="<%= back %>" class="btn btn-ghost">Annuler</a>
+    </div>
+  </form>
+
+  <% if (unit) { %>
+    <form method="post" action="/logements/<%= unit.id %>/supprimer" class="mt-4"
+          data-confirm="Supprimer définitivement ce logement ? Un logement ayant un historique d'occupation ne peut pas être supprimé.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn-danger"><i data-lucide="trash-2" class="w-4 h-4"></i> Supprimer le logement</button>
+    </form>
+  <% } %>
+</div>
+<script>
+  const sel = document.getElementById('unit_type_code');
+  const rentInput = document.getElementById('default_rent');
+  const prices = JSON.parse(sel.dataset.typePrices || '[]');
+  sel.addEventListener('change', () => {
+    const hit = prices.find(p => p[0] === sel.value);
+    if (hit && (rentInput.value === '' || !document.querySelector('[name="sync_rent"]'))) rentInput.value = hit[1];
+  });
+</script>
+<%- include('../partials/foot') %>

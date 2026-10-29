@@ -1,0 +1,248 @@
+<%- include('../partials/shell') %>
+<% const tenantId = tenancy ? tenancy.tenant_id : null; %>
+<div class="flex flex-wrap items-center gap-3">
+  <a href="<%= back %>" class="btn btn-ghost"><i data-lucide="arrow-left" class="w-4 h-4"></i> Retour</a>
+  <div class="flex-1"></div>
+  <% if (tenantId) { %>
+    <a href="/locataires/<%= tenantId %>" class="btn btn-ghost"><i data-lucide="user" class="w-4 h-4"></i> Fiche du locataire</a>
+  <% } %>
+</div>
+
+<div class="card p-5 space-y-4">
+  <div>
+    <h2 class="font-semibold text-lg">Transmettre ce document</h2>
+    <p class="text-sm text-ink-500 mt-1">Trois actions principales. Aucune n'envoie ni n'imprime à votre place :
+      chacune prépare le document, puis l'application enregistre ce qui a réellement été fait.</p>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-3">
+    <form method="post" action="/quittances/<%= r.id %>/whatsapp"<% if (number) { %> target="_blank" rel="noopener noreferrer"<% } %> class="space-y-2 rounded-lg border border-gray-200 p-4">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h3 class="font-semibold flex items-center gap-2"><i data-lucide="message-circle" class="w-4 h-4 text-emerald-600"></i> Envoyer par WhatsApp</h3>
+      <label class="block text-xs">
+        <span class="text-ink-500">Numéro du locataire (modifiable avant l'envoi)</span>
+        <input class="field-input mt-1" name="phone" value="<%= tenant ? tenant.phone : '' %>" placeholder="77 123 45 67">
+      </label>
+      <p class="text-xs <%= number ? 'text-ink-500' : 'text-amber-700' %>">
+        <% if (number) { %>
+          Ouvrira wa.me/<%= number %> avec le message prérempli.
+        <% } else { %>
+          Aucun numéro exploitable : saisissez-le ci-dessus ou sur la fiche du locataire.
+        <% } %>
+      </p>
+      <button class="btn btn-primary w-full justify-center" <%= number ? '' : 'disabled' %>>
+        <i data-lucide="external-link" class="w-4 h-4"></i> Ouvrir le brouillon</button>
+      <p class="text-[11px] text-ink-500">WhatsApp ne joint pas le PDF tout seul : téléchargez-le et joignez-le,
+        puis confirmez l'envoi.</p>
+    </form>
+
+    <form method="post" action="/quittances/<%= r.id %>/email"<% if (!smtp.available) { %> target="_blank" rel="noopener noreferrer"<% } %> class="space-y-2 rounded-lg border border-gray-200 p-4">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h3 class="font-semibold flex items-center gap-2"><i data-lucide="mail" class="w-4 h-4 text-brand-600"></i> Envoyer par e-mail</h3>
+      <label class="block text-xs">
+        <span class="text-ink-500">Adresse du locataire</span>
+        <input class="field-input mt-1" type="email" name="to" value="<%= tenant ? tenant.email : '' %>" placeholder="locataire@exemple.sn">
+      </label>
+      <% if (!tenant || !String(tenant.email || '').trim()) { %>
+        <p class="text-xs text-amber-700">Aucune adresse enregistrée pour ce locataire : saisissez-la ci-dessus
+          ou sur sa fiche. Les autres actions restent disponibles.</p>
+      <% } %>
+      <p class="text-xs <%= smtp.available ? 'text-ink-500' : 'text-amber-700' %>">
+        <% if (smtp.available) { %>
+          SMTP : <%= smtp.host %>:<%= smtp.port %> · expéditeur <%= smtp.from %>. Le PDF est généré et joint automatiquement.
+        <% } else { %>
+          Aucun SMTP configuré (<%= smtp.missing.join(', ') %>) : le logiciel de messagerie s'ouvrira avec un
+          message prérempli, sans envoi depuis l'application.
+        <% } %>
+      </p>
+      <button class="btn btn-primary w-full justify-center">
+        <i data-lucide="<%= smtp.available ? 'send' : 'mail-plus' %>" class="w-4 h-4"></i>
+        <%= smtp.available ? 'Envoyer par e-mail' : 'Préparer l\'e-mail' %></button>
+      <% if (!pdfEngine.available) { %>
+        <p class="text-[11px] text-amber-700">Sans moteur PDF, la pièce jointe est indisponible :
+          l'envoi réel échouerait, utilisez le brouillon ou l'impression.</p>
+      <% } %>
+    </form>
+
+    <form method="post" action="/impression/demander" target="_blank" rel="noopener noreferrer" class="space-y-2 rounded-lg border border-gray-200 p-4">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="ids" value="<%= r.id %>">
+      <h3 class="font-semibold flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4 text-ink-700"></i> Imprimer la quittance</h3>
+      <label class="block text-xs">
+        <span class="text-ink-500">Mise en page A4</span>
+        <select class="field-input mt-1" name="mode">
+          <option value="une">1 quittance sur 1 page</option>
+          <option value="trio">3 quittances différentes sur 1 feuille</option>
+          <option value="copies">3 exemplaires identiques sur 1 feuille</option>
+        </select>
+      </label>
+      <p class="text-xs text-ink-500">Aperçu d'abord, boutons masqués à l'impression, lisible en noir et blanc.</p>
+      <button class="btn btn-primary w-full justify-center">
+        <i data-lucide="printer" class="w-4 h-4"></i> Aperçu puis impression</button>
+    </form>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-100">
+    <form method="post" action="/quittances/<%= r.id %>/pdf" class="flex items-center gap-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="mode" value="une">
+      <button class="btn btn-ghost" <%= pdfEngine.available ? '' : 'disabled' %>>
+        <i data-lucide="file-down" class="w-4 h-4"></i> Télécharger le PDF</button>
+    </form>
+    <a href="/impression/apercu?ids=<%= r.id %>&mode=trio" class="btn btn-ghost"><i data-lucide="layout-grid" class="w-4 h-4"></i> 3 quittances / feuille</a>
+    <a href="/impression/apercu?ids=<%= r.id %>&mode=copies" class="btn btn-ghost"><i data-lucide="copy" class="w-4 h-4"></i> 3 exemplaires</a>
+    <div class="flex-1"></div>
+    <form method="post" action="/quittances/<%= r.id %>/whatsapp/confirme" class="flex items-center gap-2">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="phone" value="<%= number || '' %>">
+      <button class="btn btn-ghost"><i data-lucide="check-check" class="w-4 h-4"></i> Confirmer l'envoi WhatsApp</button>
+    </form>
+    <p class="text-xs text-ink-500 w-full sm:w-auto">
+      Moteur PDF : <%= pdfEngine.available ? pdfEngine.engine + ' · ' + pdfEngine.version : 'indisponible' %>
+      <% if (business.available) { %> · WhatsApp Business : <%= business.phoneNumberId %><% } %>
+    </p>
+  </div>
+</div>
+
+<% if (!business.available) { %>
+  <p class="text-xs text-ink-500">
+    L'automatisation de l'envoi WhatsApp (PDF joint, sans intervention) demande l'API officielle
+    WhatsApp Business : <%= business.reason %> Les autres actions restent disponibles.
+  </p>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+    <div class="card p-5">
+      <div class="flex flex-wrap items-center gap-3">
+        <h3 class="text-lg font-semibold"><%= r.number %></h3>
+        <span class="badge <%= r.is_full ? 'badge-paid' : r.is_avis ? 'badge-info' : 'badge-partial' %>"><%= r.type_label %></span>
+        <span class="text-sm text-ink-500">Période : <%= r.period_label %></span>
+      </div>
+      <% if (r.is_avis) { %>
+        <p class="mt-3 text-sm rounded-lg border border-amber-200 bg-amber-50 text-amber-900 px-3 py-2">
+          <strong>Document de suivi, pas une quittance.</strong>
+          Ce document constate une somme restant à régler : il n'atteste d'aucun paiement encaissé.
+        </p>
+      <% } %>
+      <dl class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Locataire</dt>
+          <dd class="font-medium mt-1"><a class="hover:text-brand-700" href="/locataires/<%= tenantId %>"><%= r.snap.tenant_name %></a></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Logement</dt>
+          <dd class="font-medium mt-1"><%= r.snap.unit_name %> · <%= r.snap.floor_label %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Type</dt>
+          <dd class="font-medium mt-1"><%= r.snap.unit_type_label %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Émis le</dt>
+          <dd class="font-medium mt-1"><%= r.issued_at_fr %> à <%= r.issued_place %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Loyer attendu</dt><dd class="font-medium mt-1"><%= r.expected_fr %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500"><%= r.is_avis ? 'Déjà réglé' : 'Reçu ce paiement' %></dt><dd class="font-medium mt-1"><%= r.amount_this_fr %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Total payé</dt>
+          <dd class="font-medium mt-1 <%= r.is_avis ? '' : 'text-brand-700' %>"><%= r.total_paid_fr %></dd></div>
+        <div><dt class="text-xs uppercase tracking-wide text-ink-500">Solde restant</dt>
+          <dd class="font-medium mt-1 <%= r.balance > 0 ? 'text-amber-700' : '' %>"><%= r.balance_fr %></dd></div>
+      </dl>
+      <p class="mt-4 text-sm text-ink-700 italic"><%= r.is_avis ? 'Solde à régler : ' + r.balance_in_words
+        : (r.is_full ? r.amount_in_words : r.amount_this_in_words) %></p>
+      <% if (r.observations) { %>
+        <p class="mt-3 text-sm rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"><strong>Observations :</strong> <%= r.observations %></p>
+      <% } %>
+    </div>
+
+    <div class="card overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100">
+        <h3 class="font-semibold">Détail des paiements de la période</h3>
+        <p class="text-xs text-ink-500 mt-1">Statut calculé sur les paiements réels, pas sur la présence d'un document.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data stack">
+          <thead><tr><th>Date</th><th>Montant</th><th>Mode</th><th>Note</th></tr></thead>
+          <tbody>
+            <% payments.forEach(p => { %>
+              <tr>
+                <td data-label="Date"><%= p.paid_at_fr %></td>
+                <td data-label="Montant" class="font-medium"><%= fmtFcfa(p.amount) %></td>
+                <td data-label="Mode"><%= ({ especes:'Espèces', wave:'Wave', orange_money:'Orange Money', virement:'Virement' })[p.method] %></td>
+                <td data-label="Note"><%= p.note || '—' %></td>
+              </tr>
+            <% }) %>
+            <tr class="bg-gray-50">
+              <td data-label="" class="font-semibold">Total</td>
+              <td data-label="Payé" class="font-semibold"><%= fmtFcfa(summary.paid) %></td>
+              <td data-label="Attendu"><%= fmtFcfa(summary.expected) %></td>
+              <td data-label="Solde">
+                <span class="badge <%= summary.status === 'paid' ? 'badge-paid' : summary.status === 'partial' ? 'badge-partial' : 'badge-pending' %>">
+                  <%= summary.status === 'paid' ? 'intégralement payé' : summary.status === 'partial' ? 'partiellement payé' : 'en attente' %>
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="card p-5">
+      <h3 class="font-semibold mb-3">Aperçu du document</h3>
+      <div class="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 p-2 text-[9px] leading-tight">
+        <div class="bg-white p-3" style="box-shadow:0 1px 2px rgba(0,0,0,.08)">
+          <%- include('../partials/receipt-doc', { r }) %>
+        </div>
+      </div>
+      <p class="text-xs text-ink-500 mt-3">Le PDF, l'impression et l'écran utilisent exactement ce modèle.</p>
+    </div>
+
+    <div id="transmissions" class="card p-5">
+      <h3 class="font-semibold mb-2">Historique des transmissions</h3>
+      <% if (transmissions.length === 0) { %>
+        <p class="text-sm text-ink-500">Aucune action enregistrée pour ce document.</p>
+      <% } else { %>
+        <ul class="space-y-3 text-sm">
+          <% transmissions.forEach(t => { %>
+            <li class="border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-medium"><%= t.channel_label %><%= t.recipient ? ' · ' + t.recipient : '' %></span>
+                <span class="badge <%= t.status === 'sent' || t.status === 'printed' ? 'badge-paid' : t.status === 'failed' ? 'badge-pending' : 'badge-info' %>">
+                  <%= t.status_label %></span>
+              </div>
+              <p class="text-xs text-ink-500 mt-1"><%= t.at_fr %></p>
+              <% if (t.detail) { %><p class="text-xs text-ink-500 mt-1"><%= t.detail %></p><% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <p class="text-xs text-ink-500 mt-3">« Préparé » = brouillon ouvert ou demande d'impression : rien n'a été
+        vérifié hors de l'application. « Envoyé » / « Imprimé » exigent une confirmation fiable
+        (serveur SMTP, API WhatsApp Business ou confirmation manuelle).</p>
+    </div>
+
+    <% if (!r.is_full && summary.status === 'paid') { %>
+      <form method="post" action="/quittances/<%= r.id %>/definitive" class="card p-5 space-y-3">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <h3 class="font-semibold"><%= r.is_avis ? 'Quittance disponible' : 'Quittance définitive disponible' %></h3>
+        <p class="text-sm text-ink-700">Le loyer <%= elided(r.period_label) %> est désormais intégralement réglé.
+          <% if (r.is_avis) { %>Vous pouvez émettre la quittance qui remplace cet avis.
+          <% } else { %>Vous pouvez émettre une quittance récapitulative tout en conservant l'historique des reçus partiels.<% } %></p>
+        <input class="field-input" name="observations" placeholder="Observations (facultatif)">
+        <button class="btn btn-primary w-full justify-center"><i data-lucide="file-check-2" class="w-4 h-4"></i>
+          <%= r.is_avis ? 'Émettre la quittance' : 'Émettre la quittance définitive' %></button>
+      </form>
+    <% } %>
+
+    <% if (siblings.length > 1) { %>
+      <div class="card p-5">
+        <h3 class="font-semibold mb-2">Documents de la période</h3>
+        <ul class="space-y-2 text-sm">
+          <% siblings.forEach(s => { %>
+            <li class="flex items-center justify-between gap-2">
+              <a href="/quittances/<%= s.id %>" class="font-medium hover:text-brand-700"><%= s.number %></a>
+              <span class="badge <%= s.is_full ? 'badge-paid' : s.is_avis ? 'badge-info' : 'badge-partial' %>">
+                <%= s.is_full ? 'intégral' : s.is_avis ? 'avis' : 'partiel' %></span>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+  </div>
+</div>
+<%- include('../partials/foot') %>

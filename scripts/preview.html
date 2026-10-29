@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aperçu d'impression · 3 quittance(s)</title>
+  <script src="/static/vendor/tailwind.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: { 600:'#256343', 700:'#1c4c34' }, ink: { 500:'#6b7280' } } } } };
+  </script>
+  <link rel="stylesheet" href="/static/css/print.css">
+</head>
+<body class="print-sheet">
+  <div class="no-print sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+      <a href="/impression" class="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Retour</a>
+      <div class="flex-1">
+        <p class="text-sm font-medium">1 feuille A4 (3 emplacements)</p>
+        <p class="text-xs text-gray-500">A4 portrait · 3 blocs par page · découpe sur les pointillés · rendu identique en noir et blanc.</p>
+        
+      </div>
+      <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700">
+        <i data-lucide="printer" class="w-4 h-4"></i> Imprimer
+      </button>
+      <a href="/impression/apercu?ids=3,2,1&mode=trio&pdf=1"
+         onclick="window.print(); return false;"
+         class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+        <i data-lucide="file-down" class="w-4 h-4"></i> PDF (via l'aperçu)
+      </a>
+    </div>
+  </div>
+
+  <div id="sheet-root">
+    
+      <section class="a4-sheet">
+        
+          
+
+<article class="rent-receipt">
+  <header class="text-center">
+    <p class="doc-title">QUITTANCE DE LOYER</p>
+    <p class="doc-sub">Immeuble Bamby Sidibé</p>
+    <p class="doc-sub">Propriétaire : <strong>Bamby Sidibé</strong></p>
+    <div class="doc-rule"></div>
+  </header>
+
+  <div class="doc-meta flex justify-between gap-2">
+    <span>N° <strong>QL-2026-0003</strong></span>
+    <span>Quittance de loyer — paiement intégral</span>
+    <span>Dakar, le 28/10/2026</span>
+  </div>
+
+  <div class="doc-body mt-[1.5mm]">
+    <p>Reçu de <strong>Fatou Sow</strong>, la somme de
+      <strong>20 000 FCFA</strong>
+      (<em>Vingt mille francs CFA</em>),
+      au titre du loyer de <strong>octobre 2026</strong>
+      (du 1er au 31 octobre 2026).</p>
+
+    <div class="grid grid-cols-2 gap-x-3 mt-[1.5mm]">
+      <p class="doc-line"><span class="lab">Logement :</span><span class="fill">Demo B1</span></p>
+      <p class="doc-line"><span class="lab">Étage :</span><span class="fill">Premier étage</span></p>
+      <p class="doc-line col-span-2"><span class="lab">Désignation :</span><span class="fill">Chambre simple</span></p>
+    </div>
+
+    <table class="w-full mt-[1.5mm] amounts">
+      <tr>
+        <th>Loyer attendu</th><td>20 000 FCFA</td>
+        <th>Reçu ce jour</th><td>20 000 FCFA</td>
+      </tr>
+      <tr>
+        <th>Total payé</th><td class="doc-strong">20 000 FCFA</td>
+        <th>Solde restant</th><td class="">0 FCFA</td>
+      </tr>
+    </table>
+
+    
+      <p class="mt-[1.5mm]">Le loyer de octobre 2026 est réglé <strong>intégralement</strong>.
+        Cette quittance annule et remplace tout reçu antérieur établi pour la même période.</p>
+    
+    <p class="mt-[1mm]">Observations : Loyer réglé en une fois</p>
+  </div>
+
+  <footer class="doc-sign mt-auto pt-[1.5mm]">
+    <div class="doc-rule"></div>
+    <div class="flex justify-between items-end gap-3">
+      <p>Paiement reçu le 10/10/2026 · Orange Money</p>
+      <div class="text-right shrink-0">
+        <p>Signature du propriétaire</p>
+        
+          <div class="sig-line"></div>
+        
+      </div>
+    </div>
+    
+  </footer>
+</article>
+
+          
+        
+          
+
+<article class="rent-receipt">
+  <header class="text-center">
+    <p class="doc-title">QUITTANCE DE LOYER</p>
+    <p class="doc-sub">Immeuble Bamby Sidibé</p>
+    <p class="doc-sub">Propriétaire : <strong>Bamby Sidibé</strong></p>
+    <div class="doc-rule"></div>
+  </header>
+
+  <div class="doc-meta flex justify-between gap-2">
+    <span>N° <strong>QL-2026-0002</strong></span>
+    <span>Quittance de loyer — paiement intégral</span>
+    <span>Dakar, le 28/10/2026</span>
+  </div>
+
+  <div class="doc-body mt-[1.5mm]">
+    <p>Reçu de <strong>Awa Ndiaye</strong>, la somme de
+      <strong>40 000 FCFA</strong>
+      (<em>Quarante mille francs CFA</em>),
+      au titre du loyer de <strong>octobre 2026</strong>
+      (du 1er au 31 octobre 2026).</p>
+
+    <div class="grid grid-cols-2 gap-x-3 mt-[1.5mm]">
+      <p class="doc-line"><span class="lab">Logement :</span><span class="fill">Demo A1</span></p>
+      <p class="doc-line"><span class="lab">Étage :</span><span class="fill">Premier étage</span></p>
+      <p class="doc-line col-span-2"><span class="lab">Désignation :</span><span class="fill">Chambre avec salle de bains et salon</span></p>
+    </div>
+
+    <table class="w-full mt-[1.5mm] amounts">
+      <tr>
+        <th>Loyer attendu</th><td>40 000 FCFA</td>
+        <th>Reçu ce jour</th><td>25 000 FCFA</td>
+      </tr>
+      <tr>
+        <th>Total payé</th><td class="doc-strong">40 000 FCFA</td>
+        <th>Solde restant</th><td class="">0 FCFA</td>
+      </tr>
+    </table>
+
+    
+      <p class="mt-[1.5mm]">Le loyer de octobre 2026 est réglé <strong>intégralement</strong>.
+        Cette quittance annule et remplace tout reçu antérieur établi pour la même période.</p>
+    
+    <p class="mt-[1mm]">Observations : Solde du mois</p>
+  </div>
+
+  <footer class="doc-sign mt-auto pt-[1.5mm]">
+    <div class="doc-rule"></div>
+    <div class="flex justify-between items-end gap-3">
+      <p>Paiement reçu le 10/10/2026 · Wave</p>
+      <div class="text-right shrink-0">
+        <p>Signature du propriétaire</p>
+        
+          <div class="sig-line"></div>
+        
+      </div>
+    </div>
+    
+  </footer>
+</article>
+
+          
+        
+          
+
+<article class="rent-receipt">
+  <header class="text-center">
+    <p class="doc-title">QUITTANCE DE LOYER</p>
+    <p class="doc-sub">Immeuble Bamby Sidibé</p>
+    <p class="doc-sub">Propriétaire : <strong>Bamby Sidibé</strong></p>
+    <div class="doc-rule"></div>
+  </header>
+
+  <div class="doc-meta flex justify-between gap-2">
+    <span>N° <strong>QL-2026-0001</strong></span>
+    <span>Reçu de paiement partiel</span>
+    <span>Dakar, le 28/10/2026</span>
+  </div>
+
+  <div class="doc-body mt-[1.5mm]">
+    <p>Reçu de <strong>Awa Ndiaye</strong>, la somme de
+      <strong>15 000 FCFA</strong>
+      (<em>Quinze mille francs CFA</em>),
+      au titre du loyer de <strong>octobre 2026</strong>
+      (du 1er au 31 octobre 2026).</p>
+
+    <div class="grid grid-cols-2 gap-x-3 mt-[1.5mm]">
+      <p class="doc-line"><span class="lab">Logement :</span><span class="fill">Demo A1</span></p>
+      <p class="doc-line"><span class="lab">Étage :</span><span class="fill">Premier étage</span></p>
+      <p class="doc-line col-span-2"><span class="lab">Désignation :</span><span class="fill">Chambre avec salle de bains et salon</span></p>
+    </div>
+
+    <table class="w-full mt-[1.5mm] amounts">
+      <tr>
+        <th>Loyer attendu</th><td>40 000 FCFA</td>
+        <th>Reçu ce jour</th><td>15 000 FCFA</td>
+      </tr>
+      <tr>
+        <th>Total payé</th><td class="doc-strong">15 000 FCFA</td>
+        <th>Solde restant</th><td class="doc-strong">25 000 FCFA</td>
+      </tr>
+    </table>
+
+    
+      <p class="partial mt-[1.5mm]"><strong>PAIEMENT PARTIEL</strong> — le solde de <strong>25 000 FCFA</strong>
+        reste dû sur le loyer de octobre 2026. Le présent document ne vaut pas quittance de loyer intégralement payé.</p>
+    
+    <p class="mt-[1mm]">Observations : Acompte sur le mois en cours</p>
+  </div>
+
+  <footer class="doc-sign mt-auto pt-[1.5mm]">
+    <div class="doc-rule"></div>
+    <div class="flex justify-between items-end gap-3">
+      <p>Paiement reçu le 10/10/2026 · Espèces</p>
+      <div class="text-right shrink-0">
+        <p>Signature du propriétaire</p>
+        
+          <div class="sig-line"></div>
+        
+      </div>
+    </div>
+    
+  </footer>
+</article>
+
+          
+        
+      </section>
+    
+  </div>
+
+<script src="/static/vendor/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

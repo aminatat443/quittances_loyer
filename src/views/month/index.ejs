@@ -1,0 +1,177 @@
+<%- include('../partials/shell') %>
+<%
+  const MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const prev = { year: month === 1 ? year - 1 : year, month: month === 1 ? 12 : month - 1 };
+  const next = { year: month === 12 ? year + 1 : year, month: month === 12 ? 1 : month + 1 };
+  const YEARS = []; for (let y = curYear + 1; y >= curYear - 8; y--) YEARS.push(y);
+  const PAY = {
+    paid: { cls: 'badge-paid', label: 'Intégralement payé' },
+    partial: { cls: 'badge-partial', label: 'Partiellement payé' },
+    pending: { cls: 'badge-pending', label: 'Paiement en attente' },
+  };
+  const DOC = {
+    'Quittance générée': 'badge-paid',
+    'Reçu partiel généré': 'badge-partial',
+    'Reçu partiel à compléter': 'badge-partial',
+    'Avis de loyer généré': 'badge-info',
+    'À générer': 'badge-na',
+  };
+%>
+
+<div class="card p-4 lg:p-5 flex flex-wrap items-center gap-3">
+  <a href="/quittances/mois?year=<%= prev.year %>&month=<%= prev.month %>" class="btn btn-ghost" aria-label="Mois précédent">
+    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+  </a>
+  <div class="min-w-0">
+    <h1 class="text-xl font-semibold capitalize"><%= periodLabel %></h1>
+    <p class="text-xs text-ink-500 mt-0.5">Les informations des fiches locataires sont reprises automatiquement : rien à ressaisir.</p>
+  </div>
+  <form method="get" action="/quittances/mois" class="flex items-center gap-2 ml-auto">
+    <select name="month" class="field-input w-auto capitalize" aria-label="Mois">
+      <% MONTHS.forEach((m, i) => { %><option value="<%= i+1 %>" <%= month === i+1 ? 'selected' : '' %>><%= m %></option><% }) %>
+    </select>
+    <select name="year" class="field-input w-auto" aria-label="Année">
+      <% YEARS.forEach(y => { %><option value="<%= y %>" <%= year === y ? 'selected' : '' %>><%= y %></option><% }) %>
+    </select>
+    <button class="btn btn-ghost">Afficher</button>
+  </form>
+  <a href="/quittances/mois?year=<%= next.year %>&month=<%= next.month %>" class="btn btn-ghost" aria-label="Mois suivant">
+    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+  </a>
+</div>
+
+<div class="card p-4 lg:p-5 flex flex-wrap items-center gap-4">
+  <div class="flex-1 min-w-[260px]">
+    <h2 class="font-semibold">Génération mensuelle</h2>
+    <p class="text-sm text-ink-500 mt-1">
+      <strong><%= summary.toGenerate %></strong> location(s) sans document pour <%= periodLabel %>.
+      Un clic prépare quittances, reçus partiels et avis de loyer, puis ouvre la page de récapitulatif
+      pour l'impression par lots de trois et les partages.
+    </p>
+    <p class="text-xs text-ink-500 mt-2">
+      Aucun paiement n'est enregistré et aucun message n'est envoyé par cette action :
+      un loyer non réglé produit un <strong>avis de loyer</strong>, jamais une quittance.
+    </p>
+  </div>
+  <form method="post" action="/quittances/mois/toutes" class="shrink-0">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="period_year" value="<%= year %>">
+    <input type="hidden" name="period_month" value="<%= month %>">
+    <button class="btn btn-primary text-base px-5" <%= summary.toGenerate ? '' : 'disabled style="opacity:.55;cursor:default"' %>>
+      <i data-lucide="wand-sparkles" class="w-5 h-5"></i> Générer toutes les quittances du mois
+    </button>
+  </form>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Locations suivies</p>
+    <p class="text-lg font-semibold mt-1"><%= summary.tenants %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Loyers réglés</p>
+    <p class="text-lg font-semibold mt-1 text-brand-700"><%= summary.paid %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Partiels / en attente</p>
+    <p class="text-lg font-semibold mt-1"><%= summary.partial %> / <%= summary.pending %></p></div>
+  <div class="card p-4"><p class="text-xs uppercase tracking-wide text-ink-500">Solde à encaisser</p>
+    <p class="text-lg font-semibold mt-1"><%= fmtFcfa(summary.remaining) %></p></div>
+</div>
+
+<div class="card overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-[220px]">
+      <h2 class="font-semibold">Situation de <%= periodLabel %></h2>
+      <p class="text-xs text-ink-500 mt-1">Recherche instantanée par nom, étage, logement ou type.</p>
+    </div>
+    <div class="relative w-full sm:w-72">
+      <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"></i>
+      <input class="field-input pl-9 pr-16" type="search" placeholder="Rechercher un locataire…"
+             data-search-box="#month-table" aria-label="Rechercher un locataire">
+      <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-500" data-search-count></span>
+    </div>
+  </div>
+  <div id="month-table" class="table-wrap">
+    <table class="data stack">
+      <thead>
+        <tr><th>Locataire</th><th>Étage</th><th>Logement</th><th>Loyer mensuel</th>
+            <th>Statut du paiement</th><th>Statut de la quittance</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <% if (!rows.length) { %>
+          <tr><td colspan="7" class="py-10 text-center text-ink-500">
+            Aucune location active ne couvre <%= periodLabel %>.<br>
+            <a href="/locataires/nouveau" class="text-brand-600 hover:underline font-medium mt-2 inline-block">Ajouter un locataire</a>
+          </td></tr>
+        <% } %>
+        <% rows.forEach(row => { %>
+          <tr data-search="<%= `${row.tenant_name} ${row.floor_label} ${row.unit_name} ${row.type_label || ''}`.toLowerCase() %>">
+            <td data-label="Locataire">
+              <a href="/locataires/<%= row.tenant_id %>" class="font-medium hover:text-brand-700"><%= row.tenant_name %></a>
+              <p class="text-xs text-ink-500 mt-0.5">Entrée le <%= fmtDate(row.start_date) %></p>
+            </td>
+            <td data-label="Étage"><%= row.floor_label %></td>
+            <td data-label="Logement"><%= row.unit_name %><% if (row.type_label) { %><p class="text-xs text-ink-500 mt-0.5"><%= row.type_label %></p><% } %></td>
+            <td data-label="Loyer mensuel" class="font-medium"><%= fmtFcfa(row.expected) %></td>
+            <td data-label="Statut du paiement">
+              <span class="badge <%= (PAY[row.status] || PAY.pending).cls %>"><%= (PAY[row.status] || PAY.pending).label %></span>
+              <p class="text-xs text-ink-500 mt-1"><%= row.payment_label %></p>
+            </td>
+            <td data-label="Statut de la quittance">
+              <span class="badge <%= DOC[row.doc_status] || 'badge-na' %>"><%= row.doc_status %></span>
+              <% if (row.doc_number) { %>
+                <p class="text-xs mt-1"><a href="/quittances/<%= row.doc_id %>" class="text-brand-600 hover:underline"><%= row.doc_number %></a></p>
+              <% } %>
+            </td>
+            <td data-label="Actions">
+              <div class="flex flex-wrap items-center gap-2 justify-end">
+                <% if (row.action_kind === 'generate') { %>
+                  <form method="post" action="/quittances/mois/generer">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="tenancy_id" value="<%= row.tenancy_id %>">
+                    <input type="hidden" name="period_year" value="<%= year %>">
+                    <input type="hidden" name="period_month" value="<%= month %>">
+                    <button class="btn btn-primary"><i data-lucide="file-plus" class="w-4 h-4"></i> <%= row.action_label %></button>
+                  </form>
+                  <% if (row.status !== 'paid') { %>
+                    <details class="relative">
+                      <summary class="btn btn-ghost cursor-pointer list-none">
+                        <i data-lucide="banknote" class="w-4 h-4"></i> Encaisser
+                      </summary>
+                      <form method="post" action="/paiements" class="mt-1 card p-3 w-64 absolute right-0 z-10 space-y-2">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="tenancy_id" value="<%= row.tenancy_id %>">
+                        <input type="hidden" name="period_year" value="<%= year %>">
+                        <input type="hidden" name="period_month" value="<%= month %>">
+                        <label class="field-label" for="paid-<%= row.tenancy_id %>">Montant reçu</label>
+                        <input class="field-input" id="paid-<%= row.tenancy_id %>" name="amount" type="number" min="1" step="1"
+                               value="<%= row.balance %>" required>
+                        <label class="field-label" for="at-<%= row.tenancy_id %>">Date</label>
+                        <input class="field-input" id="at-<%= row.tenancy_id %>" name="paid_at" type="date" value="<%= today %>" required>
+                        <label class="field-label" for="meth-<%= row.tenancy_id %>">Mode</label>
+                        <select class="field-input" id="meth-<%= row.tenancy_id %>" name="method">
+                          <% Object.entries(methods).forEach(([code, label]) => { %><option value="<%= code %>"><%= label %></option><% }) %>
+                        </select>
+                        <button class="btn btn-primary w-full justify-center">Enregistrer le paiement et générer la quittance</button>
+                        <p class="text-xs text-ink-500">Le solde est prérempli ; le document s'ouvre juste après l'enregistrement.</p>
+                      </form>
+                    </details>
+                  <% } %>
+                <% } else { %>
+                  <a href="/quittances/<%= row.doc_id %>" class="btn btn-ghost"><i data-lucide="eye" class="w-4 h-4"></i> Consulter</a>
+                  <a href="/impression/apercu?ids=<%= row.doc_id %>&mode=trio" class="btn btn-ghost">
+                    <i data-lucide="printer" class="w-4 h-4"></i> <%= row.action_label %>
+                  </a>
+                <% } %>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+        <tr data-no-match hidden><td colspan="7" class="py-10 text-center text-ink-500">Aucun locataire ne correspond à cette recherche.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="flex flex-wrap items-center gap-3 text-sm">
+  <a href="/impression?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="printer" class="w-4 h-4"></i> Impression groupée du mois</a>
+  <a href="/calendrier?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="calendar-days" class="w-4 h-4"></i> Suivi mensuel</a>
+  <a href="/quittances?year=<%= year %>&month=<%= month %>" class="btn btn-ghost"><i data-lucide="file-text" class="w-4 h-4"></i> Historique des documents</a>
+</div>
+<%- include('../partials/foot') %>
