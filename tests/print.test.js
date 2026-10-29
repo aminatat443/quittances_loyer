@@ -64,22 +64,23 @@ test('conversion des montants en toutes lettres françaises', () => {
   }
 });
 
-test('formatage des montants, dates et périodes en français', () => {
+test('formatage des montants, dates et périodes en français', async () => {
   assert.strictEqual(format.formatFcfa(1234567), '1 234 567 FCFA');
   assert.strictEqual(format.formatPeriode(2026, 10), 'octobre 2026');
   assert.strictEqual(format.formatDateFr('2026-10-05'), '05/10/2026');
-  const doc = rent.recordPayment({
-    tenancy_id: seedTenant(services, { name: 'LBL1', rent: 40000 }).tenancy.id,
+  const seeded = await seedTenant(services, { name: 'LBL1', rent: 40000 });
+  const doc = (await rent.recordPayment({
+    tenancy_id: seeded.tenancy.id,
     amount: 40000, paid_at: '2026-10-05', period_year: 2026, period_month: 2,
-  }).receipt;
+  })).receipt;
   assert.strictEqual(doc.period_label, 'février 2026');
   assert.strictEqual(doc.period_range, 'du 1er au 28 février 2026');
   assert.strictEqual(doc.payment_date_fr, '05/10/2026');
 });
 
-test('les années bissextiles ajustent la période du loyer', () => {
-  const t = seedTenant(services, { name: 'LYP1', rent: 20000 });
-  const leap = rent.recordPayment({ tenancy_id: t.tenancy.id, amount: 20000, paid_at: '2028-02-20',
-    period_year: 2028, period_month: 2 }).receipt;
+test('les années bissextiles ajustent la période du loyer', async () => {
+  const t = await seedTenant(services, { name: 'LYP1', rent: 20000 });
+  const leap = (await rent.recordPayment({ tenancy_id: t.tenancy.id, amount: 20000, paid_at: '2028-02-20',
+    period_year: 2028, period_month: 2 })).receipt;
   assert.match(leap.period_range, /du 1er au 29 février 2028$/);
 });

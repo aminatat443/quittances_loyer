@@ -1,0 +1,40 @@
+<%
+/*
+  Métadonnées d'installation (section 20).
+  Le manifest est servi à la racine : son scope « / » doit couvrir toute l'application.
+  Les images de démarrage iOS sont générées par « npm run pwa:assets », qui lit la table
+  ci-dessous — c'est elle qui fait foi, pas un second liste cachée dans le script.
+*/
+const ICONS = '/static/icons';
+const SPLASH = '/static/splash';
+const STARTUP = [
+  { px: '750x1334', w: 375, h: 667, dpr: 2, o: 'portrait' },
+  { px: '828x1792', w: 414, h: 896, dpr: 2, o: 'portrait' },
+  { px: '1125x2436', w: 375, h: 812, dpr: 3, o: 'portrait' },
+  { px: '1170x2532', w: 390, h: 844, dpr: 3, o: 'portrait' },
+  { px: '1290x2796', w: 430, h: 932, dpr: 3, o: 'portrait' },
+  { px: '1536x2048', w: 768, h: 1024, dpr: 2, o: 'portrait' },
+  { px: '1620x2160', w: 810, h: 1080, dpr: 2, o: 'portrait' },
+  { px: '1668x2388', w: 834, h: 1194, dpr: 2, o: 'portrait' },
+  { px: '2048x2732', w: 1024, h: 1366, dpr: 2, o: 'portrait' },
+  { px: '2048x1536', w: 768, h: 1024, dpr: 2, o: 'landscape' },
+  { px: '2160x1620', w: 810, h: 1080, dpr: 2, o: 'landscape' },
+  { px: '2388x1668', w: 834, h: 1194, dpr: 2, o: 'landscape' },
+  { px: '2732x2048', w: 1024, h: 1366, dpr: 2, o: 'landscape' },
+];
+%>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#256343">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Loyers">
+<meta name="application-name" content="Loyers">
+<meta name="description" content="Suivi des loyers, paiements et quittances imprimables d'un immeuble.">
+<link rel="icon" type="image/svg+xml" href="<%= ICONS %>/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="<%= ICONS %>/icon-192.png">
+<link rel="apple-touch-icon" href="<%= ICONS %>/apple-touch-icon.png">
+<% STARTUP.forEach(s => { %>
+<link rel="apple-touch-startup-image" href="<%= SPLASH %>/<%= s.px %>.png"
+      media="(device-width: <%= s.w %>px) and (device-height: <%= s.h %>px) and (-webkit-device-pixel-ratio: <%= s.dpr %>) and (orientation: <%= s.o %>)">
+<% }) %>

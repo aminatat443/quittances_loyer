@@ -1,6 +1,7 @@
 'use strict';
 
 const { Router } = require('../utils/router');
+const { idOf } = require('../utils/params');
 const unitsSvc = require('../services/units');
 const flash = require('../services/flash');
 
@@ -34,7 +35,7 @@ router.post('/nouveau', async (req, res) => {
 });
 
 router.get('/:id/modifier', async (req, res) => {
-  const unit = await unitsSvc.getUnit(req.params.id);
+  const unit = await unitsSvc.getUnit(idOf(req.params.id));
   if (!unit) return res.status(404).render('error', { title: 'Introuvable', message: 'Logement inconnu.' });
   const [floors, types] = await Promise.all([unitsSvc.listFloors(), unitsSvc.listUnitTypes()]);
   res.render('units/form', {
@@ -48,7 +49,7 @@ router.get('/:id/modifier', async (req, res) => {
 
 router.post('/:id/modifier', async (req, res) => {
   try {
-    await unitsSvc.updateUnit(req.params.id, req.body);
+    await unitsSvc.updateUnit(idOf(req.params.id), req.body);
     flash(req, 'Logement mis à jour.');
   } catch (e) {
     flash(req, null, e.message);
@@ -58,7 +59,7 @@ router.post('/:id/modifier', async (req, res) => {
 
 router.post('/:id/supprimer', async (req, res) => {
   try {
-    await unitsSvc.deleteUnit(req.params.id);
+    await unitsSvc.deleteUnit(idOf(req.params.id));
     flash(req, 'Logement supprimé.');
   } catch (e) {
     flash(req, null, e.message);

@@ -2,6 +2,7 @@
 
 const { Router } = require('../utils/router');
 const db = require('../db');
+const { idOf } = require('../utils/params');
 const rent = require('../services/rent');
 const share = require('../services/share');
 const unitsSvc = require('../services/units');
@@ -24,14 +25,14 @@ function parseMode(raw) {
   return MODES.includes(raw) ? raw : 'trio';
 }
 
-async function await loadReceipt(req, res) {
-  const r = await rent.getReceipt(req.params.id);
+async function loadReceipt(req, res) {
+  const r = await rent.getReceipt(idOf(req.params.id));
   if (r) return r;
   res.status(404).render('error', { title: 'Introuvable', message: 'Quittance inconnue.' });
   return null;
 }
 
-async function await tenantOf(r) {
+async function tenantOf(r) {
   const tenancy = await rent.getTenancy(r.tenancy_id);
   return tenancy ? await db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenancy.tenant_id) : null;
 }
@@ -74,7 +75,7 @@ router.get('/nouvelle', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const r = await await loadReceipt(req, res);
+  const r = await loadReceipt(req, res);
   if (!r) return undefined;
   const tenancy = await rent.getTenancy(r.tenancy_id);
   const tenant = tenancy ? await db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenancy.tenant_id) : null;
@@ -109,7 +110,7 @@ router.get('/:id', async (req, res) => {
 
 // Quittance définitive récapitulative après paiements partiels successifs
 router.post('/:id/definitive', async (req, res) => {
-  const base = await rent.getReceiptRaw(req.params.id);
+  const base = await rent.getReceiptRaw(idOf(req.params.id));
   if (!base) return res.status(404).render('error', { title: 'Introuvable', message: 'Quittance inconnue.' });
   try {
     const r = await rent.issueFinalReceipt(base.tenancy_id, base.period_year, base.period_month,

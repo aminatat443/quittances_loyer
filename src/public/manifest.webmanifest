@@ -1,0 +1,36 @@
+{
+  "id": "/",
+  "name": "Gestion des quittances de loyer",
+  "short_name": "Loyers",
+  "description": "Suivi des loyers, des paiements et des quittances imprimables de l'immeuble, avec génération mensuelle en un clic.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f5",
+  "theme_color": "#256343",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quittances du mois",
+      "short_name": "Mois",
+      "description": "Générer ou retrouver les documents de la période en cours.",
+      "url": "/quittances/mois",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Enregistrer un paiement",
+      "short_name": "Paiement",
+      "description": "Saisir un encaissement et préparer la quittance.",
+      "url": "/paiements/nouveau",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

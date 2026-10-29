@@ -92,6 +92,32 @@
       </p>
     </div>
 
+    <div class="card p-6" data-pwa-install>
+      <h2 class="font-semibold">Application installable (PWA)</h2>
+      <p class="text-xs text-ink-500 mt-1 leading-relaxed">
+        L'application s'installe comme un logiciel : icône dédiée, nom « Loyers », fenêtre autonome
+        sans barre d'adresse. Le navigateur ne met en cache que <strong>l'interface</strong> ; les
+        locataires, paiements et quittances restent dans la base PostgreSQL du poste qui héberge
+        l'application. Sans serveur joignable, l'écran d'accueil affiche un avertissement au lieu de
+        laisser croire que les données sont disponibles.
+      </p>
+      <button type="button" class="btn btn-primary mt-4" data-pwa-button hidden>
+        <span data-pwa-label>Installer l'application</span>
+      </button>
+      <p class="text-xs text-ink-500 mt-3 leading-relaxed" data-pwa-hint></p>
+      <ul class="mt-4 text-xs text-ink-500 space-y-1.5 leading-relaxed border-t border-gray-100 pt-3">
+        <li>• <strong>Ubuntu, Windows, macOS</strong> — Chrome ou Edge : bouton ci-dessus, icône
+          d'installation dans la barre d'adresse, ou menu ⋮ → « Installer l'application ».</li>
+        <li>• <strong>Android</strong> — Chrome : menu ⋮ → « Ajouter à l'écran d'accueil ».</li>
+        <li>• <strong>iPhone, iPad</strong> — Safari : menu de partage (carré avec flèche vers le
+          haut) → « Sur l'écran d'accueil ».</li>
+        <li>• <strong>Après un redéploiement</strong> — un bandeau « Mettre à jour » propose de
+          recharger ; aucune version obsolète de l'interface n'est conservée.</li>
+        <li>• <strong>Adresse</strong> — <code>http://localhost</code> suffit en local ; l'installation
+          sur un autre poste exige <code>https://</code>.</li>
+      </ul>
+    </div>
+
     <div class="card p-6">
       <h2 class="font-semibold">Signature numérisée</h2>
       <p class="text-xs text-ink-500 mt-1">Importez uniquement une signature qui vous appartient ou pour laquelle vous avez l'autorisation.

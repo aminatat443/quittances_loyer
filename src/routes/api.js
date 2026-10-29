@@ -12,8 +12,12 @@ router.get('/periode', async (req, res) => {
   const tenantId = Number(req.query.tenant_id);
   const year = Number(req.query.year);
   const month = Number(req.query.month);
+  // Garde posée avant la requête : PostgreSQL refuserait un identifiant non numérique.
+  if (!Number.isInteger(tenantId) || !year || !month) {
+    return res.status(400).json({ error: 'Locataire, mois et année requis.' });
+  }
   const tenant = await tenantsSvc.getTenant(tenantId);
-  if (!tenant || !year || !month) return res.status(400).json({ error: 'Locataire, mois et année requis.' });
+  if (!tenant) return res.status(400).json({ error: 'Locataire, mois et année requis.' });
 
   const open = await tenantsSvc.currentTenancy(tenantId);
   if (!open) return res.json({ has_tenancy: false, tenant_name: `${tenant.first_name} ${tenant.last_name}` });

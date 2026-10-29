@@ -23,49 +23,53 @@ function parseMode(raw) {
 }
 
 /** Les documents demandés, dans l'ordre de sélection, annulés exclus. */
-function loadReceipts(ids) {
-  return ids.map(id => rent.getReceipt(id)).filter(Boolean);
+async function loadReceipts(ids) {
+  return (await Promise.all(ids.map(id => rent.getReceipt(id)))).filter(Boolean);
 }
 
-function selectedIds(req) {
+async function selectedIds(req) {
   const raw = req.query.ids !== undefined ? req.query.ids : req.body.ids;
   const tokens = Array.isArray(raw) ? raw : String(raw || '').split(/[, ]+/);
   const extra = req.body.all === '1' && req.body.period_year && req.body.period_month
-    ? db.prepare(`SELECT id FROM receipts WHERE cancelled = 0 AND period_year = ? AND period_month = ?
+    ? (await db.prepare(`SELECT id FROM receipts WHERE cancelled = FALSE AND period_year = ? AND period_month = ?
                    AND type <> 'avis_loyer' ORDER BY number`)
-      .all(Number(req.body.period_year), Number(req.body.period_month)).map(r => r.id)
+      .all(Number(req.body.period_year), Number(req.body.period_month))).map(r => r.id)
     : [];
   return parseIds([...tokens, ...extra]);
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const year = Number(req.query.year) || res.locals.curYear;
   const month = Number(req.query.month) || res.locals.curMonth;
-  const receipts = db.prepare(`SELECT r.* FROM receipts r WHERE r.cancelled = 0
-                               AND r.period_year = ? AND r.period_month = ?
-                               ORDER BY r.number`).all(year, month).map(x => rent.decorateReceipt(x));
-  const canGenerate = stats.monthlyBoard(year, month)
-    .filter(r => r.status === 'paid' && !r.has_full_receipt).length;
+  const [rows, board, floors] = await Promise.all([
+    db.prepare(`SELECT r.* FROM receipts r WHERE r.cancelled = FALSE
+                AND r.period_year = ? AND r.period_month = ?
+                ORDER BY r.number`).all(year, month),
+    stats.monthlyBoard(year, month),
+    unitsSvc.listFloors(),
+  ]);
   res.render('print/index', {
     title: 'Impression groupée',
-    year, month, receipts, canGenerate,
-    floors: unitsSvc.listFloors(),
+    year, month,
+    receipts: rows.map(x => rent.decorateReceipt(x)),
+    canGenerate: board.filter(r => r.status === 'paid' && !r.has_full_receipt).length,
+    floors,
     pdfAvailable: pdf.status().available,
   });
 });
 
 // Génère automatiquement les quittances des loyers du mois déjà intégralement réglés
 // qui n'ont pas encore de quittance intégrale.
-router.post('/generer-mois', (req, res) => {
+router.post('/generer-mois', async (req, res) => {
   const year = Number(req.body.period_year);
   const month = Number(req.body.period_month);
   if (!year || !month) { flash(req, null, 'Mois et année requis.'); return res.redirect('/impression'); }
-  const board = require('../services/stats').monthlyBoard(year, month);
+  const board = await stats.monthlyBoard(year, month);
   let created = 0;
   try {
     for (const row of board) {
       if (row.status !== 'paid') continue;
-      const result = rent.generateForPeriod(row.tenancy_id, year, month);
+      const result = await rent.generateForPeriod(row.tenancy_id, year, month);
       if (result.created) created++;
     }
     flash(req, created > 0
@@ -77,13 +81,13 @@ router.post('/generer-mois', (req, res) => {
   res.redirect(`/impression?year=${year}&month=${month}`);
 });
 
-function apercu(req, res) {
-  const ids = selectedIds(req);
+async function apercu(req, res) {
+  const ids = await selectedIds(req);
   const mode = parseMode(req.query.mode !== undefined ? req.query.mode : req.body.mode);
   if (!ids.length) {
     return res.status(400).render('error', { title: 'Rien à imprimer', message: 'Sélectionnez au moins une quittance.' });
   }
-  const receipts = loadReceipts(ids);
+  const receipts = await loadReceipts(ids);
   if (!receipts.length) {
     return res.status(404).render('error', { title: 'Introuvable', message: 'Quittances introuvables.' });
   }
@@ -107,17 +111,17 @@ router.post('/apercu', apercu);
  * ne peut pas confirmer la sortie du papier) puis ouvre l'aperçu qui déclenche
  * la boîte d'impression.
  */
-router.post('/demander', (req, res) => {
-  const ids = selectedIds(req);
+router.post('/demander', async (req, res) => {
+  const ids = await selectedIds(req);
   const mode = parseMode(req.body.mode);
-  const receipts = loadReceipts(ids);
+  const receipts = await loadReceipts(ids);
   if (!receipts.length) {
     flash(req, null, 'Sélectionnez au moins une quittance à imprimer.');
     return res.redirect('/impression');
   }
   const sheets = rent.buildPrintSheets(mode === 'copies' ? receipts.slice(0, 1) : receipts, mode);
   for (const r of receipts) {
-    transmissions.record({
+    await transmissions.record({
       receipt_id: r.id, channel: 'print', status: 'prepared', recipient: '',
       detail: `Demande d'impression · ${pdf.sheetsLabel(mode, sheets.length)}`
         + (mode === 'une' ? '' : ' · confirmation papier à enregistrer'),
@@ -127,15 +131,15 @@ router.post('/demander', (req, res) => {
 });
 
 /** Confirmation explicite d'une impression physique réellement sortie. */
-router.post('/confirme', (req, res) => {
-  const ids = selectedIds(req);
-  const receipts = loadReceipts(ids);
+router.post('/confirme', async (req, res) => {
+  const ids = await selectedIds(req);
+  const receipts = await loadReceipts(ids);
   if (!receipts.length) {
     flash(req, null, 'Aucun document à confirmer.');
     return res.redirect('/impression');
   }
   for (const r of receipts) {
-    transmissions.record({
+    await transmissions.record({
       receipt_id: r.id, channel: 'print', status: 'printed', recipient: '',
       detail: `Impression confirmée manuellement (${req.body.sheets || '?'} feuille(s) annoncée(s)).`,
     });
@@ -149,9 +153,9 @@ router.post('/confirme', (req, res) => {
  * (lien depuis l'aperçu), aucun doublon d'historique n'est ajouté.
  */
 async function buildPdf(req, res, record) {
-  const ids = selectedIds(req);
+  const ids = await selectedIds(req);
   const mode = parseMode(req.query.mode !== undefined ? req.query.mode : req.body.mode);
-  const receipts = loadReceipts(ids);
+  const receipts = await loadReceipts(ids);
   if (!receipts.length) {
     flash(req, null, 'Sélectionnez au moins une quittance.');
     return res.redirect('/impression');
@@ -160,7 +164,7 @@ async function buildPdf(req, res, record) {
     const buffer = await pdf.toPdf(receipts, mode);
     if (record) {
       for (const r of receipts) {
-        transmissions.record({
+        await transmissions.record({
           receipt_id: r.id, channel: 'pdf', status: 'prepared', recipient: '',
           detail: `PDF groupé téléchargé (${Math.round(buffer.length / 1024)} Ko, `
             + `${pdf.sheetsLabel(mode, rent.buildPrintSheets(mode === 'copies' ? [r] : receipts, mode).length)}).`,
@@ -176,7 +180,7 @@ async function buildPdf(req, res, record) {
   } catch (e) {
     if (record) {
       for (const r of receipts) {
-        transmissions.record({ receipt_id: r.id, channel: 'pdf', status: 'failed', recipient: '', detail: e.message });
+        await transmissions.record({ receipt_id: r.id, channel: 'pdf', status: 'failed', recipient: '', detail: e.message });
       }
     }
     flash(req, null, `${e.message} L'aperçu d'impression s'ouvre à la place : choisissez `

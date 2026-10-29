@@ -43,12 +43,13 @@ const EDITABLE = ['owner_name', 'building_name', 'building_address', 'owner_phon
   'receipt_prefix', 'notice_prefix', 'whatsapp_country_code', 'document_title', 'document_footer',
   'fiscal_year_start'];
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  const [types, floors] = await Promise.all([unitsSvc.listUnitTypes(), unitsSvc.listFloors()]);
   res.render('settings/index', {
     title: 'Paramètres',
     s: settings.all(),
-    types: unitsSvc.listUnitTypes(),
-    floors: unitsSvc.listFloors(),
+    types,
+    floors,
     backups: backup.listBackups(),
     smtp: require('../services/mailer').smtpStatus(),
     pdfEngine: require('../services/pdf').status(),
@@ -56,7 +57,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const patch = {};
   for (const key of EDITABLE) if (req.body[key] !== undefined) patch[key] = req.body[key].trim();
   if (!patch.owner_name) { flash(req, null, 'Le nom du propriétaire ne peut pas être vide.'); return res.redirect('/parametres'); }
@@ -72,22 +73,22 @@ router.post('/', (req, res) => {
     flash(req, null, 'Indicatif téléphonique invalide : des chiffres uniquement, ex. 221.');
     return res.redirect('/parametres');
   }
-  settings.setMany(patch);
+  await settings.setMany(patch);
   for (const [code, rent] of Object.entries(req.body.tarifs || {})) {
     const v = Math.round(Number(rent));
-    if (Number.isInteger(v) && v >= 0) unitsSvc.updateFloorTypeDefaultRent(code, v);
+    if (Number.isInteger(v) && v >= 0) await unitsSvc.updateFloorTypeDefaultRent(code, v);
   }
   flash(req, 'Paramètres enregistrés. Les quittances déjà émises conservent leurs données d\'origine.');
   res.redirect('/parametres');
 });
 
-router.post('/signature', uploadSignature, (req, res) => {
+router.post('/signature', uploadSignature, async (req, res) => {
   const previous = settings.get('signature_path');
   if (req.body.remove === '1') {
     if (previous && fs.existsSync(path.join(config.signatureDir, previous))) {
       fs.unlinkSync(path.join(config.signatureDir, previous));
     }
-    settings.set('signature_path', '');
+    await settings.set('signature_path', '');
     flash(req, 'Signature retirée des documents.');
     return res.redirect('/parametres');
   }
@@ -95,18 +96,18 @@ router.post('/signature', uploadSignature, (req, res) => {
   if (previous && fs.existsSync(path.join(config.signatureDir, previous))) {
     fs.unlinkSync(path.join(config.signatureDir, previous));
   }
-  settings.set('signature_path', path.basename(req.file.filename));
+  await settings.set('signature_path', path.basename(req.file.filename));
   flash(req, 'Signature importée. Elle apparaîtra sur les nouvelles quittances.');
   res.redirect('/parametres');
 });
 
-router.post('/mot-de-passe', (req, res) => {
+router.post('/mot-de-passe', async (req, res) => {
   const { old_password, new_password } = req.body;
   if (!new_password || new_password.length < 8) {
     flash(req, null, 'Le nouveau mot de passe doit contenir au moins 8 caractères.');
     return res.redirect('/parametres');
   }
-  if (!auth.changePassword(old_password || '', new_password)) {
+  if (!await auth.changePassword(old_password || '', new_password)) {
     flash(req, null, 'Mot de passe actuel incorrect.');
     return res.redirect('/parametres');
   }
@@ -127,7 +128,7 @@ router.post('/sauvegarde', async (req, res) => {
 router.get('/sauvegardes/:name', (req, res) => {
   const name = path.basename(req.params.name);
   const file = path.join(config.backupDir, name);
-  if (!name.endsWith('.sqlite') || !fs.existsSync(file)) {
+  if (!/\.(dump|sql)$/.test(name) || !fs.existsSync(file)) {
     return res.status(404).render('error', { title: 'Introuvable', message: 'Sauvegarde inconnue.' });
   }
   res.download(file);

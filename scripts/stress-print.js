@@ -28,27 +28,15 @@ const tokenOf = html => {
   return m[1];
 };
 
-function purge() {
-  if (!require('fs').existsSync(config.dbPath)) return;
-  const Database = require('better-sqlite3');
-  const db = new Database(config.dbPath);
-  const units = db.prepare("SELECT id FROM units WHERE name LIKE 'Stress %'").all().map(r => r.id);
-  if (!units.length) return db.close();
-  const ph = units.map(() => '?').join(',');
-  const te = db.prepare(`SELECT id, tenant_id FROM tenancies WHERE unit_id IN (${ph})`).all(...units);
-  if (te.length) {
-    const p2 = te.map(() => '?').join(',');
-    db.prepare(`DELETE FROM receipts WHERE tenancy_id IN (${p2})`).run(...te.map(r => r.id));
-    db.prepare(`DELETE FROM payments WHERE tenancy_id IN (${p2})`).run(...te.map(r => r.id));
-    db.prepare(`DELETE FROM tenancies WHERE id IN (${p2})`).run(...te.map(r => r.id));
-    db.prepare(`DELETE FROM tenants WHERE id IN (${te.map(() => '?').join(',')})`).run(...te.map(r => r.tenant_id));
-  }
-  db.prepare(`DELETE FROM units WHERE id IN (${ph})`).run(...units);
-  db.close();
+const { purgeUnitsLike } = require('./purge-demo');
+const db = require('../src/db');
+
+async function purge() {
+  await purgeUnitsLike(db, 'Stress %');
 }
 
 async function main() {
-  purge();
+  await purge();
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

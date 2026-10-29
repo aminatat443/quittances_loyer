@@ -2,6 +2,7 @@
 
 const { Router } = require('../utils/router');
 const db = require('../db');
+const { idOf } = require('../utils/params');
 const tenantsSvc = require('../services/tenants');
 const unitsSvc = require('../services/units');
 const rent = require('../services/rent');
@@ -47,7 +48,7 @@ router.post('/nouveau', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  const tenant = await tenantsSvc.getTenant(req.params.id);
+  const tenant = await tenantsSvc.getTenant(idOf(req.params.id));
   if (!tenant) return res.status(404).render('error', { title: 'Introuvable', message: 'Locataire inconnu.' });
   const tenancies = await db.prepare(`
     SELECT te.*, u.name AS unit_name, f.label AS floor_label, ut.label AS type_label
@@ -85,7 +86,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.get('/:id/modifier', async (req, res) => {
-  const tenant = await tenantsSvc.getTenant(req.params.id);
+  const tenant = await tenantsSvc.getTenant(idOf(req.params.id));
   if (!tenant) return res.status(404).render('error', { title: 'Introuvable', message: 'Locataire inconnu.' });
   const [open, units] = await Promise.all([
     tenantsSvc.currentTenancy(tenant.id),
@@ -99,33 +100,33 @@ router.get('/:id/modifier', async (req, res) => {
 
 router.post('/:id/modifier', async (req, res) => {
   try {
-    await tenantsSvc.updateTenant(req.params.id, req.body);
+    await tenantsSvc.updateTenant(idOf(req.params.id), req.body);
     flash(req, 'Fiche mise à jour.');
   } catch (e) {
     flash(req, null, e.message);
   }
-  res.redirect(`/locataires/${req.params.id}`);
+  res.redirect(`/locataires/${idOf(req.params.id)}`);
 });
 
 router.post('/:id/depart', async (req, res) => {
   try {
-    await tenantsSvc.endTenancy(req.params.id, req.body.departure_date || new Date().toISOString().slice(0, 10));
+    await tenantsSvc.endTenancy(idOf(req.params.id), req.body.departure_date || new Date().toISOString().slice(0, 10));
     flash(req, 'Départ enregistré. L\'historique des paiements et des quittances est conservé.');
   } catch (e) {
     flash(req, null, e.message);
   }
-  res.redirect(`/locataires/${req.params.id}`);
+  res.redirect(`/locataires/${idOf(req.params.id)}`);
 });
 
 router.post('/:id/relogement', async (req, res) => {
   try {
-    await tenantsSvc.moveTenant(req.params.id, Number(req.body.unit_id),
+    await tenantsSvc.moveTenant(idOf(req.params.id), Number(req.body.unit_id),
       req.body.start_date || new Date().toISOString().slice(0, 10), Number(req.body.monthly_rent) || 0);
     flash(req, 'Logement réattribué ; l\'ancienne occupation reste dans l\'historique.');
   } catch (e) {
     flash(req, null, e.message);
   }
-  res.redirect(`/locataires/${req.params.id}`);
+  res.redirect(`/locataires/${idOf(req.params.id)}`);
 });
 
 module.exports = router;

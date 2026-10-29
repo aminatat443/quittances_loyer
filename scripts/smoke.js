@@ -9,6 +9,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const config = require('../src/config');
+const db = require('../src/db');
+const { purgeUnitsLike } = require('./purge-demo');
 
 const BASE = process.env.SMOKE_BASE || `http://localhost:${config.port}`;
 let cookie = '';
@@ -32,35 +34,10 @@ const tokenOf = html => {
   return m[1];
 };
 
-// Le script est rejouable : il purge d'abord les lignes de démonstration
-// (logements « Demo … », leurs locations, paiements et quittances associés).
-function resetDemo() {
-  if (!fs.existsSync(config.dbPath)) return;
-  const Database = require('better-sqlite3');
-  const db = new Database(config.dbPath);
-  db.pragma('foreign_keys = ON');
-  db.transaction(() => {
-    const units = db.prepare("SELECT id FROM units WHERE name LIKE 'Demo %'").all().map(r => r.id);
-    if (!units.length) return;
-    const ph = units.map(() => '?').join(',');
-    const tenancies = db.prepare(`SELECT id FROM tenancies WHERE unit_id IN (${ph})`).all(...units).map(r => r.id);
-    if (tenancies.length) {
-      const pht = tenancies.map(() => '?').join(',');
-      db.prepare(`DELETE FROM receipts WHERE tenancy_id IN (${pht})`).run(...tenancies);
-      db.prepare(`DELETE FROM payments WHERE tenancy_id IN (${pht})`).run(...tenancies);
-      const tenants = db.prepare(`SELECT tenant_id FROM tenancies WHERE id IN (${pht})`).all(...tenancies).map(r => r.tenant_id);
-      db.prepare(`DELETE FROM tenancies WHERE id IN (${pht})`).run(...tenancies);
-      if (tenants.length) {
-        db.prepare(`DELETE FROM tenants WHERE id IN (${tenants.map(() => '?').join(',')})`).run(...new Set(tenants));
-      }
-    }
-    db.prepare(`DELETE FROM units WHERE id IN (${ph})`).run(...units);
-  })();
-  db.close();
-}
-
 async function main() {
-  resetDemo();
+  await db.assertReachable();
+  await purgeUnitsLike(db, 'Demo %');
+  await db.close();
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -98,9 +75,13 @@ async function main() {
   // 3. encaissements : partiel puis solde, pour chaque locataire
   r = await send('/quittances/nouvelle');
   const tk = tokenOf(r.body);
-  const options = [...r.body.matchAll(/<option value="(\d+)" data-tenant-id="(\d+)"/g)]
-    .map(m => ({ tenancy: Number(m[1]), tenant: Number(m[2]) }));
-  console.log('locations facturables:', options.length);
+  // Seules les locations « Demo » sont ciblées : une base réelle contient déjà des
+  // locataires dont la période est quittancée, et le parcours doit rester rejouable.
+  const options = [...r.body.matchAll(/<option value="(\d+)" data-tenant-id="(\d+)"[^>]*>\s*([^<]*)/g)]
+    .map(m => ({ tenancy: Number(m[1]), tenant: Number(m[2]), label: m[3].trim() }))
+    .filter(o => /Demo/i.test(o.label));
+  console.log('locations facturables:', options.map(o => o.label).join(' | '));
+  if (options.length < 2) throw new Error('Les deux locations de démonstration sont introuvables');
 
   const plan = [
     [options[0], 15000, 'especes', 'Acompte sur le mois en cours'],
@@ -116,14 +97,16 @@ async function main() {
     if (res.location) docUrls.push(res.location);
   }
 
-  // 4. tentative de doublon : doit être refusée
+  // 4. tentative de doublon : doit être refusée (le message est porté par la page suivante)
   const dup = await send('/paiements', { method: 'POST', form: {
     _csrf: tk, tenancy_id: options[0].tenancy, amount: 40000, paid_at: `${year}-${month}-11`,
     method: 'especes', period_year: year, period_month: Number(month), observations: 'test doublon', generate: 'auto' } });
-  console.log('doublon de quittance intégrale:', dup.status, /déjà/i.test(dup.body) ? 'averti' : dup.location);
+  const afterDup = dup.location ? await send(dup.location) : dup;
+  console.log('doublon de quittance intégrale:', dup.status,
+    /déjà/i.test(afterDup.body) ? 'refusé et signalé' : 'MESSAGE ATTENDU INTROUVABLE');
 
-  // 5. historique + aperçu A4
-  r = await send(`/quittances?year=${year}&month=${Number(month)}`);
+  // 5. historique + aperçu A4 (les liens d'impression de groupe sont sur la page du mois)
+  r = await send(`/quittances/mois?year=${year}&month=${Number(month)}`);
   const ids = [...new Set([...r.body.matchAll(/\/impression\/apercu\?ids=(\d+)/g)].map(m => m[1]))];
   console.log('documents du mois:', ids.length);
 

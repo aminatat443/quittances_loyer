@@ -4,11 +4,13 @@ Application web locale pour remplacer les quittances papier : suivi des loyers,
 paiements réels, génération automatique de quittances et impression de **trois
 quittances sur une feuille A4**. Interface d'administration en français, montants
 en FCFA, aucune dépendance à Internet au démarrage (Tailwind, Lucide et les polices
-sont vendus localement).
+sont vendus localement), et **application installable** sur le poste, sur Android
+et sur iPhone (§6).
 
-Stack : **Node.js + Express**, **EJS**, **Tailwind CSS**, **SQLite** (`better-sqlite3`),
-**Lucide Icons**, **Nodemailer** (envoi e-mail), **Chromium headless** (PDF).
-Pas de React/Vue/Angular, pas de build frontend.
+Stack : **Node.js + Express**, **EJS**, **Tailwind CSS**, **PostgreSQL** (`pg`),
+**Lucide Icons**, **Nodemailer** (envoi e-mail), **Chromium headless** (PDF),
+**PWA** (manifeste, icônes, service worker). Pas de React/Vue/Angular, pas de build
+frontend.
 
 ---
 
@@ -19,7 +21,13 @@ Pas de React/Vue/Angular, pas de build frontend.
 ```bash
 node --version    # Node.js 20 ou plus récent
 npm --version
-sudo apt install -y build-essential python3   # requis pour compiler better-sqlite3
+sudo apt install -y postgresql postgresql-client   # base de données
+```
+
+Le service doit tourner sur la machine (cluster local, port 5432) :
+
+```bash
+sudo systemctl status postgresql     # « active »
 ```
 
 Pour le bouton **Télécharger le PDF**, un navigateur Chromium est nécessaire
@@ -28,19 +36,41 @@ reste entièrement utilisable : l'impression passe par la boîte de dialogue du
 navigateur, qui sait enregistrer en PDF, et le bouton est désactivé avec une
 explication visible (§5).
 
+### Créer le rôle et la base (une seule fois)
+
+En tant qu'administrateur PostgreSQL :
+
+```bash
+sudo -u postgres psql
+```
+
+```sql
+CREATE ROLE quittances LOGIN PASSWORD 'mot-de-passe' CREATEDB;
+CREATE DATABASE quittances OWNER quittances;
+\q
+```
+
+`CREATEDB` est nécessaire pour la suite de tests, qui crée et supprime une base
+isolée par fichier de test.
+
 ### Première installation
 
 ```bash
 cd APP_LOCATION
-cp .env.example .env      # puis éditez .env (voir §2)
+cp .env.example .env      # puis éditez .env : DATABASE_URL au minimum (voir §2)
 npm install
 npm start
 ```
 
-Ouvrir <http://localhost:3000>. La base `data/rent.sqlite` est créée, migrée et
-peuplée automatiquement au premier démarrage (les 3 étages, les 3 types de
-logement, les tarifs par défaut et le compte administrateur). **Aucun locataire
-fictif n'est préenregistré** : commencez par créer vos logements et locataires.
+Ouvrir <http://localhost:3000>. Les migrations `src/db/migrations/*.sql` sont
+appliquées automatiquement au premier démarrage (les 3 étages, les 3 types de
+logement, les tarifs par défaut, les paramètres et le compte administrateur).
+**Aucun locataire fictif n'est préenregistré** : commencez par créer vos logements
+et locataires.
+
+Pour l'utiliser comme un logiciel — icône « Loyers », fenêtre autonome, installation
+sur le poste, sur Android et sur iPhone — voir §6. Les icônes et les ressources
+d'installation sont déjà générées : aucune commande supplémentaire n'est nécessaire.
 
 ### Démarrage automatique (optionnel)
 
@@ -57,7 +87,10 @@ pm2 save && pm2 startup systemd   # puis exécuter la commande affichée
 | Clé | Rôle | Valeur par défaut |
 | --- | --- | --- |
 | `PORT` | Port HTTP | `3000` |
-| `DATABASE_PATH` | Fichier SQLite | `./data/rent.sqlite` |
+| `DATABASE_URL` | Chaîne de connexion PostgreSQL (`postgres://user:mot-de-passe@hôte:port/base`) | — |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Alternative à `DATABASE_URL` (utilisée si elle est vide) | `localhost`, `5432`, `quittances` |
+| `PG_POOL_MAX` | Connexions simultanées dans le pool | `8` |
+| `SQLITE_ARCHIVE_PATH` | Ancienne base SQLite, lue uniquement par le script d'import | `./data/rent.sqlite` |
 | `ADMIN_USERNAME` | Identifiant administrateur | `admin` |
 | `ADMIN_PASSWORD` | Mot de passe créé **au premier démarrage uniquement** | `changeme-2026` |
 | `SESSION_SECRET` | Secret des cookies de session | à remplacer absolument |
@@ -69,6 +102,9 @@ pm2 save && pm2 startup systemd   # puis exécuter la commande affichée
 | `CHROME_PATH` | Binaire Chrome/Chromium si l'auto-détection échoue | détection |
 | `WHATSAPP_BUSINESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | API officielle WhatsApp (automatisation optionnelle) | vide = brouillons wa.me |
 | `WHATSAPP_API_VERSION` | Version de l'API Meta | `v20.0` |
+
+`DATABASE_URL` prime sur les variables `PG*`. Un mot de passe contenant des
+caractères spéciaux doit être encodé dans l'URL (`p/a/ss` → `p%2Fa%2Fss`).
 
 Les clauses `SMTP_*` et `WHATSAPP_BUSINESS_*` sont **optionnelles** : sans elles,
 l'application n'annonce jamais un envoi réel (§5). Un mot de passe SMTP ou un
@@ -160,7 +196,7 @@ C'est le chemin réduit au minimum : aucune ressaisie, aucun formulaire intermé
 | `/quittances/:id` | fiche du document : les trois actions principales (Envoyer par WhatsApp, Envoyer par e-mail, Imprimer la quittance), Télécharger le PDF, aperçu du document et **historique des transmissions** complet |
 | `/impression` | mode 1 (une quittance par page), mode 2 (jusqu'à 3 quittances distinctes sur une feuille) et mode 3 (3 exemplaires) ; sélection multiple, aperçu avant impression, PDF groupé |
 | `/calendrier` | suivi mensuel par logement : attendu / payé / reste / statut, navigation mois par mois |
-| `/parametres` | identité du propriétaire, tarifs par défaut, libellés des documents, numérotation (préfixes `QL` et `AL`), indicatif WhatsApp pour les partages, **état des canaux d'envoi** (moteur PDF, SMTP, API WhatsApp Business), signature numérisée, sauvegardes, mot de passe |
+| `/parametres` | identité du propriétaire, tarifs par défaut, libellés des documents, numérotation (préfixes `QL` et `AL`), indicatif WhatsApp pour les partages, **état des canaux d'envoi** (moteur PDF, SMTP, API WhatsApp Business), **installation de l'application (PWA)** et marche à suivre par navigateur, signature numérisée, sauvegardes, mot de passe |
 
 ### Règles métier appliquées
 
@@ -302,7 +338,107 @@ téléchargé ou envoyé a le même rendu.
 
 ---
 
-## 6. Sauvegardes
+## 6. Application installable (PWA)
+
+L'application s'installe comme un logiciel dans Chrome, Edge (Ubuntu, Windows,
+macOS), Chrome Android et Safari iOS, et s'ouvre alors dans **sa propre fenêtre**,
+sans barre d'adresse, avec son icône et son nom « Loyers ».
+
+### Ce qui est réellement en place
+
+| Élément | Fichier | Rôle |
+| --- | --- | --- |
+| Manifeste Web | `src/public/manifest.webmanifest`, servi à la racine (`/manifest.webmanifest`) | nom « Gestion des quittances de loyer », nom court « Loyers », `start_url` et `scope` sur `/`, `display: standalone`, `background_color` `#f7f7f5`, `theme_color` `#256343`, deux raccourcis (Quittances du mois, Enregistrer un paiement) |
+| Icônes | `src/public/icons/` | PNG 192 × 192 et 512 × 512, variante `maskable` pour Android, `apple-touch-icon`, plus le gabarit vectoriel `icon.svg` |
+| Écran de démarrage | `src/public/splash/` | 13 images iOS (iPhone portrait, iPad portrait et paysage) + `background_color` et icône pour l'Android/desktop |
+| Service worker | `src/public/sw.js`, servi à la racine | met en cache **la coquille** (CSS, JS, vendor, icônes, manifeste, page d'accueil hors ligne), supprime les caches des versions précédentes à l'activation |
+| Bouton d'installation | `src/public/js/pwa.js`, dans le menu latéral et **Paramètres → Application installable (PWA)** | utilise l'invite native `beforeinstallprompt`, rend l'état après acceptation ou refus, se masque quand l'application est déjà installée |
+| Page hors ligne | `src/public/hors-ligne.html` (URL `/hors-ligne`) | écran d'accueil servi par le cache quand le serveur n'est pas joignable |
+| Métadonnées | `src/views/partials/pwa-head.ejs` | `<link rel="manifest">`, `theme-color`, icône tactile, déclarations iOS, inclus par `partials/head.ejs` sur toutes les pages — **pas** sur le gabarit d'impression |
+
+### Installer
+
+**Ubuntu / Windows / macOS — Chrome ou Edge.** Ouvrir `http://localhost:3000`
+(ou l'adresse du poste hôte en HTTPS), puis l'un des trois chemins équivalents :
+bouton **« Installer l'application »** (menu latéral ou Paramètres), icône
+d'installation dans la barre d'adresse, ou menu ⋮ → « Installer l'application… ».
+L'invite est demandée au navigateur : après acceptation l'icône « Loyers »
+apparaît sur le bureau / dans la liste des applications, après refus le message
+« Installation annulée » est affiché et le bouton reste disponible.
+
+**Android.** Chrome → menu ⋮ → « Ajouter à l'écran d'accueil ». Si le navigateur
+ne remet pas d'invite, l'application affiche ce mode d'emploi au lieu d'un bouton
+inactif.
+
+**iPhone / iPad (Safari).** Partager (icône carrée à flèche vers le haut) →
+« Sur l'écran d'accueil ». L'application s'ouvre alors en `standalone` avec son
+écran de démarrage. Le bouton « Installer » n'apparaît **jamais** sur iOS : Safari
+ne fournit pas d'invite programmable, et la page Paramètres l'explique.
+
+**Navigateur sans installation** (Firefox de bureau, Safari macOS) : aucun faux
+bouton n'est affiché ; la zone d'installation explique ce que le navigateur ne
+propose pas et comment faire.
+
+### Hors ligne : ce qui est disponible, et ce qui ne l'est pas
+
+Le cache du navigateur ne contient que **l'interface**. Les locataires, paiements,
+quittances et paramètres vivent dans **PostgreSQL, sur le poste qui exécute
+Node.js** : aucune base locale, aucune file d'attente de synchronisation, donc
+aucune écriture différée ni conflit de fusion possible.
+
+- Interface ouverte, serveur éteint → la page « Serveur de l'application
+  injoignable » s'affiche : elle dit que les données ne sont pas sur l'appareil et
+  qu'**aucun document n'a été envoyé, imprimé ni modifié** pendant la coupure.
+- Bandeau discret en bas de page dès que le navigateur passe hors connexion, avec
+  le même avertissement.
+- Une saisie en cours (POST) n'est **jamais** rejouée par le service worker, et
+  aucune page, aucun `/api`, aucun PDF, aucune signature n'est mis en cache :
+  un écran ne peut pas afficher une quittance périmée en croyant qu'elle est à jour.
+- Un véritable mode hors ligne avec écritures (file d'attente locale,
+  synchronisation et gestion des conflits) demanderait une architecture dédiée ;
+  il n'est pas simulé ici.
+
+### Mises à jour après déploiement
+
+1. Redéployer le code et relancer le service (`pm2 restart quittances`, ou
+   `npm start`).
+2. Si des fichiers precachés ont changé (CSS, JS, icônes), incrémenter
+   `VERSION` en tête de `src/public/sw.js` — c'est ce qui force le nouveau cache.
+3. L'onglet ouvert reçoit le nouveau service worker et affiche un bandeau
+   **« Nouvelle version disponible → Mettre à jour »** ; le rechargement est
+   déclenché par l'utilisateur, jamais d'autorité, pour ne pas perdre une saisie.
+   Un onglet laissé ouvert se resynchronise aussi dès qu'il reprend le premier plan.
+4. À l'activation, les caches des versions antérieures sont supprimés : aucune
+   version obsolète ne survit.
+
+### Générer à nouveau les icônes et les écrans de démarrage
+
+```bash
+npm run pwa:assets     # Chrome headless rasterise icon.svg et les 13 images iOS
+```
+
+Le script lit la table `STARTUP` de `src/views/partials/pwa-head.ejs` (taille
+annoncée au navigateur = taille produite), puis vérifie chaque PNG généré.
+`src/public/icons/icon.svg` est le seul fichier à modifier pour changer le logo.
+
+### Sécurité et compatibilité
+
+- **HTTPS en production.** Le service worker et l'installation exigent un contexte
+  sécurisé ; `http://localhost` est accepté pour le développement local. Pour un
+  accès depuis d'autres postes, placer l'application derrière un reverse proxy TLS
+  (par exemple nginx + certificat, `letsencrypt` pour une adresse publique) et
+  ouvrir l'adresse `https://…` : c'est cette origine qui sera installée.
+- Le manifeste, le service worker et la page hors ligne sont servis **avant** la
+  session et le CSRF — ils ne contiennent aucune donnée métier — tandis que toutes
+  les pages applicatives restent protégées par la connexion.
+- `Cache-Control: no-cache` sur `/sw.js` et `/manifest.webmanifest` : le navigateur
+  recompare les octets à chaque chargement au lieu de traîner une vieille version.
+- Les ressources externes (`wa.me`, API WhatsApp) ne sont jamais interceptées par
+  le service worker.
+
+---
+
+## 7. Sauvegardes
 
 - **Bouton « Sauvegarder maintenant »** dans Paramètres, ou en ligne de commande :
 
@@ -310,29 +446,45 @@ téléchargé ou envoyé a le même rendu.
   npm run backup
   ```
 
-- Copie cohérente via l'API `Backup` de SQLite, nommée
-  `data/backups/rent-<horodatage>.sqlite`, conservée 30 jours, téléchargeable
-  depuis Paramètres.
-- Sauvegarde manuelle de secours (application arrêtée) :
+- Archive cohérente produite par `pg_dump -Fc --no-owner --no-privileges`, nommée
+  `data/backups/quittances-<horodatage>.dump` (format compressé, restaurable en
+  partie), conservée 30 jours et téléchargeable depuis Paramètres. Le mot de passe
+  transite par l'environnement du processus enfant, jamais par la ligne de commande.
+- Chaque archive est vérifiée (`pg_restore --list`) avant d'être annoncée comme
+  sauvegardée.
+- Restauration :
 
   ```bash
-  cp data/rent.sqlite ~/Sauvegardes/rent-$(date +%F).sqlite
+  dropdb quittances && createdb quittances
+  pg_restore -d quittances --no-owner data/backups/quittances-2026-10-29T17-23-13.dump
   ```
 
-- Les signatures importées (`data/signatures/`) ne sont **pas** versionnées :
-  les copier avec la base. Les exports CSV sont produits à la volée et ne
-  laissent aucun fichier sur le disque.
+- Sauvegarde manuelle de secours, hors application :
+
+  ```bash
+  pg_dump -Fc -f ~/Sauvegardes/quittances-$(date +%F).dump "$DATABASE_URL"
+  ```
+
+- Les signatures importées (`data/signatures/`) ne sont **pas** contenues dans
+  l'archive PostgreSQL : les copier avec la base. Les exports CSV sont produits à
+  la volée et ne laissent aucun fichier sur le disque.
 
 ---
 
-## 7. Tests et vérification du démarrage
+## 8. Tests et vérification du démarrage
 
 ```bash
-npm test          # 58 tests (node:test) — base SQLite temporaire par fichier
+npm test          # 74 tests (node:test) — une base PostgreSQL isolée par fichier
 ```
 
-Ils couvrent : calculs de loyers et soldes, paiements partiels et complets,
-refus des doublons et réémission, unicité des numéros, conservation de
+Chaque fichier de test crée sa propre base (`quittances_test_<pid>_<hasard>`) via
+`createdb`, y applique les migrations, puis la supprime à la fin (`dropdb`) : les
+tests ne touchent jamais les données réelles. Le rôle utilisé doit donc avoir
+`CREATEDB`. Un garde-fou de `tests/helpers.js` refuse en outre tout fichier qui
+chargerait `src/config`, `src/db` ou `src/app` **avant** `loadApp()` : la
+configuration de production se serait installée dans le processus et les tests
+écriraient dans la base réelle. Ils couvrent : calculs de loyers et soldes, paiements partiels et
+complets, refus des doublons et réémission, unicité des numéros, conservation de
 l'historique (archivage, changement de tarif, instantanés), regroupement par lots
 de trois, toutes lettres françaises, formatage FR, CSRF, hachage du mot de passe,
 échappement, statistiques du tableau de bord et du calendrier.
@@ -359,47 +511,70 @@ d'impression « préparée » puis confirmation « imprimée », aperçu qui n'e
 rien, téléchargements PDF tracés, et l'historique complet (canal, destinataire,
 horodatage, statut).
 
+`tests/pwa.test.js` vérifie l'installation (§6) : manifeste accessible sans
+connexion avec ses champs obligatoires (`name`, `short_name`, `start_url`,
+`scope`, `display: standalone`, couleurs), icônes PNG réellement aux tailles
+annoncées (lecture de l'en-tête IHDR), chaque ressource precachée reachable hors
+session, liste des URL que le service worker refuse de cacher (pages, `/api`,
+`/signatures`, PDF), page hors ligne qui n'affirme pas que les données le sont,
+métadonnées présentes dans les pages, boutons d'installation `hidden` par défaut,
+et gabarit d'impression exempt de toute référence PWA.
+
+`tests/sw.test.js` exécute le service worker **hors navigateur** (`src/public/sw.js`
+chargé dans un `vm` avec de faux `caches` et un `fetch` simulé) : precache de la
+coquille, installation qui survit à une ressource absente, fichier de coquille servi
+depuis le cache puis réactualisé, navigation qui vient du serveur et jamais archivée,
+retombée sur la page d'avertissement quand le serveur est injoignable, réponse 504
+sans cache ni serveur, non-interception des POST / `/api` / signatures / PDF / liens
+externes, suppression des caches de versions précédentes à l'activation, et
+`skipWaiting` déclenché uniquement par un message explicite.
+
 Vérification bout-en-bout sur un serveur lancé :
 
 ```bash
 npm start &
-node scripts/smoke.js         # connexion, locataires, paiements, doublon refusé, CSV, aperçu A4
+npm run smoke               # connexion, locataires, paiements, doublon refusé, CSV, aperçu A4
 node scripts/stress-print.js  # cas extrêmes pour l'impression
 ```
 
-Ces deux scripts créent des lignes marquées `Demo …` / `Stress …` et les purge
-d'abord : à réserver à un environnement d'essai.
+Ces deux scripts créent des lignes marquées `Demo …` / `Stress …` et les purge au
+démarrage (`scripts/purge-demo.js`) : à réserver à un environnement d'essai. Ils
+lisent la même `DATABASE_URL` que l'application — pour les mener sur une base de
+test, démarrer l'application et le script avec la `DATABASE_URL` de cette base.
 
 ---
 
-## 8. Organisation du projet
+## 9. Organisation du projet
 
 ```
 src/
-  app.js                 Express, sessions (store SQLite maison), locals globaux, gestion d'erreurs FR
-  config.js              lecture de .env
-  db.js                  ouverture SQLite (WAL, clés étrangères) + exécute les migrations *.sql
-  db/migrations/         001_init.sql : schéma complet + index · 002_monthly_documents.sql : avis de loyer, e-mail, index d'unicité · 003_transmissions.sql : journal des transmissions
+  app.js                 Express, sessions (store PostgreSQL maison), locals globaux, ressources PWA à la racine du scope, gestion d'erreurs FR
+  boot.js                ordre de démarrage : base joignable → migrations → paramètres → compte administrateur → purge des sessions expirées
+  config.js              lecture de .env (DATABASE_URL ou variables PG*)
+  db.js                  pool `pg` + façade prepare().get/all/run async, placeholders « ? » traduits en « $n », transactions par AsyncLocalStorage, migrations *.sql
+  db/migrations/         001_init.sql : schéma complet + index · 002_monthly_documents.sql : avis de loyer, e-mail, index d'unicité · 003_transmissions.sql : journal des transmissions · 004_sessions.sql : sessions côté serveur
   middleware/security.js CSRF (timingSafeEqual), exigences de session
   services/
     auth.js              bcrypt, création du compte administrateur
     units.js             étages, types, logements, vue bâtiment
     tenants.js           locataires, locations, archivage, réattribution
-    rent.js              CŒUR métier : soldes, paiements, quittances, avis, génération en un clic et en lot, numérotation, lots d'impression
+    rent.js              CŒUR métier : soldes, paiements, quittances, avis, génération en un clic et en lot, numérotation atomique, lots d'impression
     share.js             contacts et messages : normalisation internationale des numéros, textes WhatsApp/e-mail, brouillons wa.me / mailto, appel à l'API WhatsApp Business (opt-in par .env)
     mailer.js            envoi e-mail réel via Nodemailer (SMTP from .env), pièce jointe PDF, statut du service sans le mot de passe
     pdf.js               téléchargement PDF : rendu du modèle d'impression identique, puis Chromium headless (détection du binaire, PDF_ENGINE / CHROME_PATH)
     transmissions.js     journal des transmissions : canal, destinataire, statut (préparé / envoyé / échec / imprimé), horodatage FR
     stats.js             tableau de bord, board mensuel, historiques filtrés
-    settings.js          paramètres + jeu de données initial
-    backup.js            sauvegardes datées, purge, vérification
-  routes/                dashboard, units, tenants, payments, month (Quittances du mois), receipts, print, calendar, settings, export, api, auth
-  views/                 EJS (mise en page, partiel imprimable receipt-doc.ejs, pages month/index et month/recap, fiche quittances/show avec actions de partage et historique des transmissions)
-  public/                CSS écran + impression, JS vanilla, vendor Tailwind et Lucide
+    settings.js          paramètres en cache mémoire (lus des dizaines de fois par requête), jeu de données initial
+    backup.js            sauvegardes pg_dump datées, purge, vérification pg_restore
+  routes/                dashboard, units, tenants, payments, month (Quittances du mois), receipts, print, calendar, settings, export, api, auth, pwa (manifeste, service worker, page hors ligne — avant la session)
+  views/                 EJS (mise en page, partiel imprimable receipt-doc.ejs, pages month/index et month/recap, fiche quittances/show avec actions de partage et historique des transmissions, partials/pwa-head.ejs pour les métadonnées d'installation)
+  public/                CSS écran + impression, JS vanilla (app.js, pwa.js), vendor Tailwind et Lucide, et les ressources de la PWA (§6) : manifest.webmanifest, sw.js, hors-ligne.html, icons/, splash/
   utils/format.js        FCFA, dates et périodes FR, montants en toutes lettres
-tests/                   node:test + helpers (base temporaire isolée)
-scripts/                 smoke.js, stress-print.js, backup.js
-data/                    base SQLite, sauvegardes, signatures (hors service)
+  utils/router.js        enveloppe les gestionnaires : Express 4 n'attend pas les fonctions async
+  utils/params.js        identifiants lus dans l'URL, ramenés à 0 quand ils ne sont pas numériques
+tests/                   node:test + helpers (base PostgreSQL isolée créée et supprimée par fichier)
+scripts/                 smoke.js, stress-print.js, backup.js, migrate-to-postgres.js (import SQLite → PostgreSQL), generate-pwa-assets.js (icônes et écrans de démarrage), purge-demo.js
+data/                    sauvegardes, signatures (hors service), archive SQLite en lecture seule
 ```
 
 ### Modèle de données
@@ -414,31 +589,58 @@ par action de partage : document, canal `whatsapp` / `email` / `print` / `pdf`,
 statut `prepared` / `sent` / `failed` / `printed`, destinataire, détail ou message
 d'erreur, horodatage) · `receipt_sequences` (compteur de
 numérotation par année, partagé entre `QL` et `AL` pour que les numéros ne soient
-jamais réutilisés).
+jamais réutilisés) · `sessions` (cookie de session serveur : identifiant, données,
+échéance) · `migrations` (fichiers déjà appliqués).
 
 Contraintes notables : `UNIQUE(floor_id, name)`, `CHECK` sur les statuts et les
 modes de paiement, index sur les périodes et les locataires, un index unique
 partiel `uq_tenancies_open_unit` qui empêche deux locations ouvertes sur un même
 logement, et les index partiels `uq_receipts_full_period` /
 `uq_receipts_avis_period` qui interdisent deux quittances intégrales (ou deux
-avis) actifs pour la même location et la même période.
+avis) actifs pour la même location et la même période — la base refuse, l'application
+traduit l'erreur en message clair.
 
-### Évolution vers PostgreSQL
+### Migration depuis SQLite (réalisée)
 
-Toute l'accès aux données passe par `src/db.js` et des requêtes paramétrées.
-Pour migrer : ajouter un adaptateur (par ex. `pg`) exposant `prepare().get/all/run`
-et `transaction()`, convertir `001_init.sql` (`INTEGER` → `BIGINT`,
-`datetime('now')` → `now()`, `AUTOINCREMENT` → `GENERATED ALWAYS AS IDENTITY`,
-index partiel déjà compatible) et rejouer les migrations sur la nouvelle base.
-Aucune vue ni règle métier n'a besoin d'être modifiée.
+L'application tourne désormais **uniquement** sur PostgreSQL. L'ancienne base
+`data/rent.sqlite` (avec son journal `-wal`) a été importée puis archivée sous
+`data/rent.sqlite.archived` ; elle n'est plus ouverte par l'application, seulement
+par le script d'import.
+
+```bash
+npm run migrate:postgres                        # data/rent.sqlite → DATABASE_URL
+node scripts/migrate-to-postgres.js --from chemin/archive.sqlite [--force]
+```
+
+Le script lit une **copie cohérente** de l'archive (le journal WAL peut contenir
+les dernières lignes), vide la destination dans une **seule transaction**
+(`TRUNCATE … RESTART IDENTITY CASCADE`), réinjecte les identifiants d'origine — les
+clés étrangères sont donc reconstituées à l'identique — puis compare le nombre de
+lignes **table par table** avant d'archiver l'archive. Si les comptes diffèrent,
+rien n'est renommé et le script sort en erreur. `--force` est nécessaire quand la
+destination contient déjà des locataires.
+
+Conversions appliquées : `AUTOINCREMENT` → `BIGINT GENERATED BY DEFAULT AS IDENTITY`
+(l'import garde les numéros d'origine), `snapshot` TEXT → **JSONB**, `cancelled`
+INTEGER → **BOOLEAN**, `COLLATE NOCASE` → `lower(…)`, `LIKE` → `ILIKE`, compteurs
+de numérotation relu par une requête atomique `INSERT … ON CONFLICT … RETURNING`.
+Les dates sont relues en chaînes `AAAA-MM-JJ [HH:MM:SS]` pour que le formatage
+français reste identique, et `INT8`/`NUMERIC` sont convertis en nombres : les
+montants FCFA continuent de voyager comme des entiers. Les sessions, stockées en
+mémoire avec SQLite, vivent maintenant dans la table `sessions` (migration 004) :
+la déconnexion d'un navigateur et un redémarrage du serveur ne se dessaisissent
+plus, et les sessions expirées sont purgées au démarrage.
 
 ---
 
-## 9. Dépannage
+## 10. Dépannage
 
 | Symptôme | Solution |
 | --- | --- |
-| `npm run dev` : « Cannot find module 'express-session' » | `npm install` (les dépendances manquaient) |
+| `npm start` : « Cannot find module 'express-session' » | `npm install` (les dépendances manquaient) |
+| « Démarrage impossible : Base de données injoignable » | PostgreSQL n'est pas lancé (`sudo systemctl start postgresql`), ou `DATABASE_URL` est faux — vérifier hôte, port, base et encodage du mot de passe |
+| « FATAL: la base de données « … » n'existe pas » | créer la base : `createdb -U <rôle> quittances`, ou l'import : `npm run migrate:postgres` |
+| « permission refusée pour création d'une base » lors de `npm test` | le rôle doit avoir `CREATEDB` : `ALTER ROLE <rôle> CREATEDB;` |
 | Les pages ne se rafraîchissent pas en développement | lancer avec `NODE_ENV=development` (sinon le cache des vues EJS reste actif) |
 | « Session expirée » sur un formulaire | le jeton CSRF a expiré : recharger la page |
 | Port 3000 occupé | `PORT=3100 npm start` |
@@ -447,7 +649,12 @@ Aucune vue ni règle métier n'a besoin d'être modifiée.
 | « Aucun service SMTP n'est configuré » | normal sans `SMTP_*` : l'application propose un brouillon `mailto:` ou le PDF, et journalise « Préparé ». Renseigner `.env` puis redémarrer pour l'envoi réel |
 | Un e-mail est « Envoyé » mais le locataire ne l'a pas reçu | vérifier le destinataire dans l'historique des transmissions ; le serveur a pu accepter puis refuser (rejet enregistré comme « Échec » avec le message du serveur) |
 | Le document reste « Préparé » après l'ouverture de WhatsApp | c'est le comportement attendu : wa.me n'envoie rien. Joindre le PDF puis confirmer avec « J'ai envoyé le message » |
-| `better-sqlite3` ne compile pas | `sudo apt install build-essential python3` puis `npm rebuild better-sqlite3` |
+| Aucun bouton « Installer l'application » (PWA) | le navigateur ne remet pas d'invite (Firefox, Safari macOS, iOS) ou l'application est déjà installée — la page Paramètres indique lequel de ces cas s'applique et la marche à suivre ; hors `localhost`, HTTPS est exigé |
+| « Serveur de l'application injoignable » alors que l'application était ouverte | le poste qui exécute Node.js est éteint ou le service est arrêté (`pm2 restart quittances`) : l'interface est en cache, **les données non** — les recharger après redémarrage |
+| L'interface semble rester une version périmée après redéploiement | incrémenter `VERSION` dans `src/public/sw.js`, puis valider le bandeau « Mettre à jour » ; en dernier recours, DevTools → Application → Service workers → Unregister |
+| Icône ou écran de démarrage absent après modification du logo | `npm run pwa:assets` (Chrome/Chromium doit être installé), puis recharger l'onglet |
+| Message d'erreur PostgreSQL affiché en français | normal : le cluster a `lc_messages = fr_FR`. Les messages affichés à l'écran viennent de l'application, l'erreur brute n'est jamais montrée telle quelle |
+| Emplacement de signature introuvable après restauration | `data/signatures/` n'est pas dans l'archive PostgreSQL : le copier séparément |
 
 ## Licence
 

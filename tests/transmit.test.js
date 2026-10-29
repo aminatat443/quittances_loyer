@@ -4,7 +4,7 @@
    Ce fichier vérifie que le document transmis est bien le modèle officiel, qu'aucun
    envoi n'est simulé, et que chaque action est enregistrée avec le statut réellement
    observable. Tous les locataires utilisés ici sont des exemples fictifs, créés dans
-   une base SQLite temporaire propre à ce fichier de tests. */
+   une base PostgreSQL de test propre à ce fichier et supprimée à la fin. */
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -21,21 +21,21 @@ const transmissions = require('../src/services/transmissions');
 const Y = 2026, M = 10;
 const hasPdfEngine = Boolean(pdf.status().available);
 
-const rowsFor = (receiptId) =>
+const rowsFor = async (receiptId) =>
   db.prepare('SELECT * FROM receipt_transmissions WHERE receipt_id = ? ORDER BY id').all(receiptId);
-const lastRow = (receiptId) => rowsFor(receiptId).at(-1) || {};
+const lastRow = async (receiptId) => (await rowsFor(receiptId)).at(-1) || {};
 
 /** Locataire fictif dont le loyer d'octobre 2026 est intégralement encaissé. */
-function paidReceipt(unit, phone, email) {
-  const seeded = seedTenant(services, {
+async function paidReceipt(unit, phone, email) {
+  const seeded = await seedTenant(services, {
     name: unit, rent: 40000, first_name: 'Awa', last_name: 'Ndiaye', phone, email,
   });
-  rent.recordPayment({
+  await rent.recordPayment({
     tenancy_id: seeded.tenancy.id, amount: 40000, paid_at: '2026-10-05',
     period_year: Y, period_month: M,
   }, { generate: 'none' });
-  const doc = rent.generateOne(seeded.tenancy.id, Y, M);
-  return { ...doc, receipt: rent.getReceipt(doc.receipt.id), tenant: seeded.tenant };
+  const doc = await rent.generateOne(seeded.tenancy.id, Y, M);
+  return { ...doc, receipt: await rent.getReceipt(doc.receipt.id), tenant: seeded.tenant };
 }
 
 /* ---------- 1. PDF : le modèle officiel, accents compris ---------- */
@@ -49,7 +49,7 @@ test('le moteur PDF de la machine est détecté et annoncé', (t) => {
 
 test('le PDF reprend le modèle officiel, accents et montant en lettres inclus', async (t) => {
   if (!hasPdfEngine) return t.skip('moteur PDF indisponible');
-  const { receipt } = paidReceipt('PDF1', '771234567', 'awa@exemple.sn');
+  const { receipt } = await paidReceipt('PDF1', '771234567', 'awa@exemple.sn');
 
   const html = await pdf.sheetsHtml([receipt], 'une');
   assert.match(html, /QUITTANCE DE LOYER/);
@@ -73,7 +73,8 @@ test('le PDF reprend le modèle officiel, accents et montant en lettres inclus',
 test('1, 2 puis 3 quittances distinctes : une seule feuille A4, et une page par document en mode « une »',
   async (t) => {
     if (!hasPdfEngine) return t.skip('moteur PDF indisponible');
-    const docs = ['PDF2', 'PDF3', 'PDF4'].map(u => paidReceipt(u, '771234567', 'x@exemple.sn').receipt);
+    const docs = [];
+    for (const u of ['PDF2', 'PDF3', 'PDF4']) docs.push((await paidReceipt(u, '771234567', 'x@exemple.sn')).receipt);
     const sheets = (html) => (html.match(/<section class="a4-sheet/g) || []).length;
     const blocks = (html) => (html.match(/class="rent-receipt/g) || []).length;
 
@@ -104,8 +105,8 @@ test('les numéros sénégalais sont normalisés au format international', () =>
   }
 });
 
-test('le lien WhatsApp est prérempli avec le message exact, correctement encodé', () => {
-  const { receipt } = paidReceipt('WA1', '77 123 45 67', 'awa1@exemple.sn');
+test('le lien WhatsApp est prérempli avec le message exact, correctement encodé', async () => {
+  const { receipt } = await paidReceipt('WA1', '77 123 45 67', 'awa1@exemple.sn');
   const url = new URL(share.whatsappLink('771234567', receipt));
   assert.strictEqual(url.origin + url.pathname, 'https://wa.me/221771234567');
   const text = decodeURIComponent(url.searchParams.get('text'));
@@ -117,8 +118,8 @@ test('le lien WhatsApp est prérempli avec le message exact, correctement encod�
   assert.strictEqual(share.whatsappLink('', receipt), null, 'aucun lien sans numéro');
   assert.strictEqual(share.whatsappLink('12345', receipt), null, 'aucun lien avec un numéro invalide');
 
-  const avisTenant = seedTenant(services, { name: 'WA0', rent: 30000, first_name: 'Awa', last_name: 'Ndiaye' });
-  const avis = rent.issueAvisLoyer(avisTenant.tenancy.id, Y, M);
+  const avisTenant = await seedTenant(services, { name: 'WA0', rent: 30000, first_name: 'Awa', last_name: 'Ndiaye' });
+  const avis = await rent.issueAvisLoyer(avisTenant.tenancy.id, Y, M);
   const avisText = decodeURIComponent(new URL(share.whatsappLink('771234567', avis))
     .searchParams.get('text'));
   assert.match(avisText, /avis de loyer/, 'un document de suivi n\'est jamais présenté comme une quittance');
@@ -129,15 +130,15 @@ test('le lien WhatsApp est prérempli avec le message exact, correctement encod�
 
 /* ---------- 3. Service d'enregistrement des transmissions ---------- */
 
-test('l\'enregistrement des transmissions refuse un canal ou un statut inconnu', () => {
-  const { receipt } = paidReceipt('TR1', '771234567', 't1@exemple.sn');
-  assert.throws(() => transmissions.record({ receipt_id: receipt.id, channel: 'sms', status: 'sent' }));
-  assert.throws(() => transmissions.record({ receipt_id: receipt.id, channel: 'email', status: 'ok' }));
-  assert.throws(() => transmissions.record({ receipt_id: 999999, channel: 'email', status: 'sent' }));
-  const row = transmissions.record({ receipt_id: receipt.id, channel: 'email', status: 'prepared',
+test('l\'enregistrement des transmissions refuse un canal ou un statut inconnu', async () => {
+  const { receipt } = await paidReceipt('TR1', '771234567', 't1@exemple.sn');
+  await assert.rejects(() => transmissions.record({ receipt_id: receipt.id, channel: 'sms', status: 'sent' }));
+  await assert.rejects(() => transmissions.record({ receipt_id: receipt.id, channel: 'email', status: 'ok' }));
+  await assert.rejects(() => transmissions.record({ receipt_id: 999999, channel: 'email', status: 'sent' }));
+  const row = await transmissions.record({ receipt_id: receipt.id, channel: 'email', status: 'prepared',
     recipient: 't1@exemple.sn', detail: 'brouillon' });
   assert.strictEqual(row.channel, 'email');
-  assert.deepStrictEqual(transmissions.listFor(receipt.id).map(x => x.status), ['prepared']);
+  assert.deepStrictEqual((await transmissions.listFor(receipt.id)).map(x => x.status), ['prepared']);
 });
 
 /* ---------- 4. Parcours HTTP réels ---------- */
@@ -224,7 +225,7 @@ test('e-mail : envoi réel avec pièce jointe PDF quand SMTP est configuré', as
   if (!hasPdfEngine) return t.skip('moteur PDF indisponible : pas de pièce jointe possible');
   useEnv(SMTP_ENV);
   await login();
-  const { receipt } = paidReceipt('MAIL1', '771234567', 'awa.mail1@exemple.sn');
+  const { receipt } = await paidReceipt('MAIL1', '771234567', 'awa.mail1@exemple.sn');
 
   const captured = [];
   const realCreate = nodemailer.createTransport;
@@ -256,7 +257,7 @@ test('e-mail : envoi réel avec pièce jointe PDF quand SMTP est configuré', as
   assert.match(m.attachments[0].filename, /^quittance-QL-/);
   assert.strictEqual(m.attachments[0].content.subarray(0, 5).toString(), '%PDF-');
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.channel, 'email');
   assert.strictEqual(row.status, 'sent', 'le succès n\'est enregistré que sur confirmation du serveur');
   assert.strictEqual(row.recipient, 'awa.mail1@exemple.sn');
@@ -272,13 +273,13 @@ test('e-mail : envoi réel avec pièce jointe PDF quand SMTP est configuré', as
 test('e-mail : adresse absente ou invalide → échec enregistré, autres actions conservées', async () => {
   useEnv(SMTP_ENV);
   await login();
-  const { receipt } = paidReceipt('MAIL2', '771234567', '');
+  const { receipt } = await paidReceipt('MAIL2', '771234567', '');
 
   const bad = await send(`/quittances/${receipt.id}/email`, {
     method: 'POST', form: { _csrf: await csrf(), to: 'pas-une-adresse' } });
   assert.strictEqual(bad.location, `/quittances/${receipt.id}`);
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.channel, 'email');
   assert.strictEqual(row.status, 'failed');
   assert.match(row.detail, /invalide/);
@@ -294,7 +295,7 @@ test('e-mail : adresse absente ou invalide → échec enregistré, autres action
 test('e-mail : sans SMTP, un brouillon est ouvert et rien n\'est annoncé comme envoyé', async () => {
   useEnv(NO_SMTP_ENV);
   await login();
-  const { receipt } = paidReceipt('MAIL3', '771234567', 'awa.mail3@exemple.sn');
+  const { receipt } = await paidReceipt('MAIL3', '771234567', 'awa.mail3@exemple.sn');
 
   const mail = await send(`/quittances/${receipt.id}/email`, {
     method: 'POST', form: { _csrf: await csrf() } });
@@ -302,7 +303,7 @@ test('e-mail : sans SMTP, un brouillon est ouvert et rien n\'est annoncé comme 
   assert.strictEqual(decodeURIComponent(/subject=([^&]*)/.exec(mail.location)[1]),
     'Quittance de loyer — Octobre 2026 — Awa Ndiaye');
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.status, 'prepared', 'aucun envoi ne peut être déclaré');
   assert.match(row.detail, /Aucun service SMTP/);
 
@@ -315,7 +316,7 @@ test('e-mail : une panne du serveur SMTP est enregistrée comme échec', async (
   if (!hasPdfEngine) return t.skip('moteur PDF indisponible');
   useEnv(SMTP_ENV);
   await login();
-  const { receipt } = paidReceipt('MAIL4', '771234567', 'awa.mail4@exemple.sn');
+  const { receipt } = await paidReceipt('MAIL4', '771234567', 'awa.mail4@exemple.sn');
 
   const realCreate = nodemailer.createTransport;
   nodemailer.createTransport = () => ({
@@ -330,7 +331,7 @@ test('e-mail : une panne du serveur SMTP est enregistrée comme échec', async (
   }
   assert.strictEqual(mail.location, `/quittances/${receipt.id}`);
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.status, 'failed');
   assert.match(row.detail, /connection to smtp\.exemple\.sn:587 failed/);
   const page = await send(mail.location);
@@ -344,14 +345,14 @@ test('e-mail : une panne du serveur SMTP est enregistrée comme échec', async (
 test('WhatsApp : ouvrir le brouillon s\'enregistre « préparé », jamais « envoyé »', async () => {
   useEnv({ WHATSAPP_BUSINESS_TOKEN: undefined, WHATSAPP_PHONE_NUMBER_ID: undefined });
   await login();
-  const { receipt } = paidReceipt('WA2', '771234567', 'awa.wa2@exemple.sn');
+  const { receipt } = await paidReceipt('WA2', '771234567', 'awa.wa2@exemple.sn');
 
   const open = await send(`/quittances/${receipt.id}/whatsapp`, {
     method: 'POST', form: { _csrf: await csrf() } });
   assert.strictEqual(open.status, 302);
   assert.match(open.location, /^https:\/\/wa\.me\/221771234567\?text=/);
 
-  let row = lastRow(receipt.id);
+  let row = await lastRow(receipt.id);
   assert.strictEqual(row.channel, 'whatsapp');
   assert.strictEqual(row.status, 'prepared', 'ouvrir WhatsApp ne vaut pas envoi');
   assert.strictEqual(row.recipient, '221771234567');
@@ -362,17 +363,17 @@ test('WhatsApp : ouvrir le brouillon s\'enregistre « préparé », jamais « en
     method: 'POST', form: { _csrf: tokenOf(page.body) } });
   assert.strictEqual(confirm.status, 302);
 
-  row = lastRow(receipt.id);
+  row = await lastRow(receipt.id);
   assert.strictEqual(row.status, 'sent');
   assert.match(row.detail, /confirm. manuellement/);
-  assert.strictEqual(rowsFor(receipt.id).filter(x => x.channel === 'whatsapp').length, 2,
+  assert.strictEqual((await rowsFor(receipt.id)).filter(x => x.channel === 'whatsapp').length, 2,
     'le brouillon et la confirmation sont deux entrées distinctes');
 });
 
 test('WhatsApp : le numéro peut être corrigé avant l\'envoi, sinon échec sans bloquer les autres actions',
   async () => {
     await login();
-    const { receipt } = paidReceipt('WA3', '', 'awa.wa3@exemple.sn');
+    const { receipt } = await paidReceipt('WA3', '', 'awa.wa3@exemple.sn');
 
     const doc = await send(`/quittances/${receipt.id}`);
     assert.match(doc.body, /Aucun numéro exploitable/, 'la saisie du numéro est proposée');
@@ -380,12 +381,12 @@ test('WhatsApp : le numéro peut être corrigé avant l\'envoi, sinon échec san
     const fixed = await send(`/quittances/${receipt.id}/whatsapp`, {
       method: 'POST', form: { _csrf: tokenOf(doc.body), phone: '+221 78 555 11 22' } });
     assert.match(fixed.location, /^https:\/\/wa\.me\/221785551122\?text=/);
-    assert.strictEqual(lastRow(receipt.id).recipient, '221785551122');
+    assert.strictEqual((await lastRow(receipt.id)).recipient, '221785551122');
 
     const broken = await send(`/quittances/${receipt.id}/whatsapp`, {
       method: 'POST', form: { _csrf: await csrf(), phone: '12' } });
     assert.strictEqual(broken.location, `/quittances/${receipt.id}`);
-    const row = lastRow(receipt.id);
+    const row = await lastRow(receipt.id);
     assert.strictEqual(row.status, 'failed');
     assert.match(row.detail, /Numéro inutilisable/);
 
@@ -406,7 +407,7 @@ test('WhatsApp Business : l\'automatisation n\'existe que si les identifiants so
   assert.strictEqual(st.phoneNumberId, '123456789');
 
   await login();
-  const { receipt } = paidReceipt('WA4', '771234567', 'awa.wa4@exemple.sn');
+  const { receipt } = await paidReceipt('WA4', '771234567', 'awa.wa4@exemple.sn');
   const calls = [];
   const restore = stubMetaApi((url, options) => {
     calls.push({ url, options });
@@ -430,7 +431,7 @@ test('WhatsApp Business : l\'automatisation n\'existe que si les identifiants so
   assert.strictEqual(payload.messaging_product, 'whatsapp');
   assert.match(payload.text.body, /Numéro de quittance/);
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.status, 'sent', 'l\'API a renvoyé un accusé de prise en charge');
   assert.match(row.detail.replace(/&#39;/g, "'"), /PDF n'est pas joint/);
 });
@@ -438,7 +439,7 @@ test('WhatsApp Business : l\'automatisation n\'existe que si les identifiants so
 test('WhatsApp Business : un refus de l\'API est enregistré comme échec', async () => {
   useEnv({ WHATSAPP_BUSINESS_TOKEN: 'jeton', WHATSAPP_PHONE_NUMBER_ID: '123456789' });
   await login();
-  const { receipt } = paidReceipt('WA5', '771234567', 'awa.wa5@exemple.sn');
+  const { receipt } = await paidReceipt('WA5', '771234567', 'awa.wa5@exemple.sn');
   const restore = stubMetaApi(() => ({
     ok: false, status: 400, json: async () => ({ error: { message: 'numéro non autorisé (erreur 131026)' } }),
   }));
@@ -451,7 +452,7 @@ test('WhatsApp Business : un refus de l\'API est enregistré comme échec', asyn
     useEnv({ WHATSAPP_BUSINESS_TOKEN: undefined, WHATSAPP_PHONE_NUMBER_ID: undefined });
   }
   assert.strictEqual(fail.location, `/quittances/${receipt.id}`);
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.status, 'failed');
   assert.match(row.detail, /num.ro non autoris/);
   assert.match((await send(`/quittances/${receipt.id}`)).body, /chec de l.{0,10}envoi WhatsApp/);
@@ -462,8 +463,8 @@ test('WhatsApp Business : un refus de l\'API est enregistré comme échec', asyn
 test('impression : la demande est « préparée », le papier ne peut être confirmé que par l\'utilisateur',
   async () => {
     await login();
-    const a = paidReceipt('PRN1', '771234567', 'p1@exemple.sn');
-    const b = paidReceipt('PRN2', '771234567', 'p2@exemple.sn');
+    const a = await paidReceipt('PRN1', '771234567', 'p1@exemple.sn');
+    const b = await paidReceipt('PRN2', '771234567', 'p2@exemple.sn');
 
     const ask = await send('/impression/demander', { method: 'POST', form: {
       _csrf: await csrf(), ids: [a.receipt.id, b.receipt.id].join(','), mode: 'trio' } });
@@ -471,10 +472,10 @@ test('impression : la demande est « préparée », le papier ne peut être conf
     assert.match(ask.location, new RegExp(
       `^/impression/apercu\\?ids=${a.receipt.id},${b.receipt.id}&mode=trio&print=1$`));
 
-    assert.strictEqual(lastRow(a.receipt.id).channel, 'print');
-    assert.strictEqual(lastRow(a.receipt.id).status, 'prepared');
-    assert.strictEqual(lastRow(b.receipt.id).status, 'prepared', 'les deux documents du lot sont journalisés');
-    assert.match(lastRow(a.receipt.id).detail, /Demande d.impression/);
+    assert.strictEqual((await lastRow(a.receipt.id)).channel, 'print');
+    assert.strictEqual((await lastRow(a.receipt.id)).status, 'prepared');
+    assert.strictEqual((await lastRow(b.receipt.id)).status, 'prepared', 'les deux documents du lot sont journalisés');
+    assert.match((await lastRow(a.receipt.id)).detail, /Demande d.impression/);
 
     const apercu = await send(ask.location);
     assert.strictEqual(apercu.status, 200);
@@ -486,13 +487,14 @@ test('impression : la demande est « préparée », le papier ne peut être conf
     const confirm = await send('/impression/confirme', { method: 'POST', form: {
       _csrf: tokenOf(apercu.body), ids: `${a.receipt.id},${b.receipt.id}`, sheets: '1' } });
     assert.strictEqual(confirm.status, 302);
-    assert.strictEqual(lastRow(a.receipt.id).status, 'printed');
-    assert.match(lastRow(a.receipt.id).detail, /confirm.e manuellement/);
+    assert.strictEqual((await lastRow(a.receipt.id)).status, 'printed');
+    assert.match((await lastRow(a.receipt.id)).detail, /confirm.e manuellement/);
   });
 
 test('une quittance par page : le mode « une » produit une page A4 par document', async () => {
   await login();
-  const docs = ['ONE1', 'ONE2'].map(u => paidReceipt(u, '771234567', 'o@exemple.sn').receipt);
+  const docs = [];
+  for (const u of ['ONE1', 'ONE2']) docs.push((await paidReceipt(u, '771234567', 'o@exemple.sn')).receipt);
   const apercu = await send(`/impression/apercu?ids=${docs.map(d => d.id).join(',')}&mode=une`);
   assert.strictEqual(apercu.status, 200);
   assert.strictEqual((apercu.body.match(/<section class="a4-sheet single"/g) || []).length, 2);
@@ -501,10 +503,10 @@ test('une quittance par page : le mode « une » produit une page A4 par documen
 
 test('l\'aperçu d\'impression ne consigne rien : seule la demande est journalisée', async () => {
   await login();
-  const { receipt } = paidReceipt('PRN3', '771234567', 'p3@exemple.sn');
+  const { receipt } = await paidReceipt('PRN3', '771234567', 'p3@exemple.sn');
   const apercu = await send(`/impression/apercu?ids=${receipt.id}&mode=trio`);
   assert.strictEqual(apercu.status, 200);
-  assert.strictEqual(rowsFor(receipt.id).length, 0, 'consulter un aperçu n\'est pas une transmission');
+  assert.strictEqual((await rowsFor(receipt.id)).length, 0, 'consulter un aperçu n\'est pas une transmission');
   const doc = await send(`/quittances/${receipt.id}`);
   assert.match(doc.body, /Aucune action enregistrée pour ce document/);
 });
@@ -514,7 +516,8 @@ test('l\'aperçu d\'impression ne consigne rien : seule la demande est journalis
 test('télécharger le PDF : fichier valide et action tracée pour chaque document', async (t) => {
   if (!hasPdfEngine) return t.skip('moteur PDF indisponible');
   await login();
-  const docs = ['DL1', 'DL2', 'DL3'].map(u => paidReceipt(u, '771234567', 'd@exemple.sn').receipt);
+  const docs = [];
+  for (const u of ['DL1', 'DL2', 'DL3']) docs.push((await paidReceipt(u, '771234567', 'd@exemple.sn')).receipt);
 
   const single = await send(`/quittances/${docs[0].id}/pdf`, {
     method: 'POST', raw: true, form: { _csrf: await csrf(), mode: 'une' } });
@@ -524,8 +527,8 @@ test('télécharger le PDF : fichier valide et action tracée pour chaque docume
   assert.strictEqual(single.headers.get('x-content-type-options'), 'nosniff');
   assert.strictEqual(single.body.subarray(0, 5).toString(), '%PDF-');
   assert.match(single.body.subarray(-32).toString('latin1'), /%%EOF/);
-  assert.strictEqual(lastRow(docs[0].id).channel, 'pdf');
-  assert.strictEqual(lastRow(docs[0].id).status, 'prepared');
+  assert.strictEqual((await lastRow(docs[0].id)).channel, 'pdf');
+  assert.strictEqual((await lastRow(docs[0].id)).status, 'prepared');
 
   const lot = await send('/impression/pdf', { method: 'POST', raw: true, form: {
     _csrf: await csrf(), ids: docs.map(d => d.id).join(','), mode: 'trio' } });
@@ -533,14 +536,14 @@ test('télécharger le PDF : fichier valide et action tracée pour chaque docume
   assert.strictEqual(lot.body.subarray(0, 5).toString(), '%PDF-');
   assert.match(lot.body.subarray(-32).toString('latin1'), /%%EOF/);
   for (const d of docs) {
-    assert.strictEqual(lastRow(d.id).channel, 'pdf', `${d.number} tracé`);
-    assert.match(lastRow(d.id).detail, /PDF group/);
+    assert.strictEqual((await lastRow(d.id)).channel, 'pdf', `${d.number} tracé`);
+    assert.match((await lastRow(d.id)).detail, /PDF group/);
   }
 });
 
 test('un échec de génération PDF est enregistré et renvoie vers l\'impression du navigateur', async () => {
   await login();
-  const { receipt } = paidReceipt('FAIL1', '771234567', 'f@exemple.sn');
+  const { receipt } = await paidReceipt('FAIL1', '771234567', 'f@exemple.sn');
   const token = await csrf();
 
   const realToPdf = pdf.toPdf;
@@ -559,7 +562,7 @@ test('un échec de génération PDF est enregistré et renvoie vers l\'impressio
   assert.strictEqual(fail.status, 302);
   assert.match(fail.location, new RegExp(`^/impression/apercu\\?ids=${receipt.id}&mode=une&pdf=1$`));
 
-  const row = lastRow(receipt.id);
+  const row = await lastRow(receipt.id);
   assert.strictEqual(row.channel, 'pdf');
   assert.strictEqual(row.status, 'failed');
   assert.match(row.detail, /simulation/);
@@ -570,14 +573,14 @@ test('un échec de génération PDF est enregistré et renvoie vers l\'impressio
 
 test('l\'historique conserve canal, horodatage, destinataire et statut de chaque action', async () => {
   await login();
-  const { receipt } = paidReceipt('HIS1', '771234567', 'h@exemple.sn');
+  const { receipt } = await paidReceipt('HIS1', '771234567', 'h@exemple.sn');
   const token = await csrf();
 
   await send(`/quittances/${receipt.id}/whatsapp`, { method: 'POST', form: { _csrf: token } });
   await send(`/quittances/${receipt.id}/whatsapp/confirme`, { method: 'POST', form: { _csrf: token } });
   await send('/impression/demander', { method: 'POST', form: { _csrf: token, ids: String(receipt.id), mode: 'une' } });
 
-  const list = transmissions.listFor(receipt.id);
+  const list = await transmissions.listFor(receipt.id);
   assert.strictEqual(list.length, 3);
   assert.deepStrictEqual(list.map(x => x.channel_label), ['Impression', 'WhatsApp', 'WhatsApp']);
   assert.deepStrictEqual(list.map(x => x.status_label), ['Préparé', 'Envoyé', 'Préparé']);
@@ -588,7 +591,7 @@ test('l\'historique conserve canal, horodatage, destinataire et statut de chaque
   assert.match(view.body, /Historique des transmissions/);
   assert.match(view.body, /Impression/);
   assert.match(view.body, /Préparé/);
-  assert.strictEqual(rowsFor(receipt.id).length, 3, 'consulter la fiche n\'ajoute aucune action');
+  assert.strictEqual((await rowsFor(receipt.id)).length, 3, 'consulter la fiche n\'ajoute aucune action');
 });
 
 test.after(async () => {

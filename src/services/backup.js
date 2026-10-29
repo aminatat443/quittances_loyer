@@ -62,7 +62,8 @@ function listBackups() {
 async function verifyBackup(file) {
   try {
     const { stdout } = await run('pg_restore', ['--list', file], { env: pgEnv() });
-    return /TABLE receipts/.test(stdout) && /TABLE tenants/.test(stdout);
+    // Ligne de la liste : « 233; 1259 26818 TABLE public receipts aminata ».
+    return /TABLE \S+ receipts\b/.test(stdout) && /TABLE \S+ tenants\b/.test(stdout);
   } catch {
     return false;
   }

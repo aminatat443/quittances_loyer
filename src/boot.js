@@ -15,6 +15,9 @@ async function boot() {
   await db.migrate();
   await settings.init();
   await auth.ensureAdmin();
+  // Les sessions lues suppriment leur propre ligne expirée ; ce passage évite
+  // que la table ne croisse indéfiniment avec les navigateurs jamais rouverts.
+  await db.prepare('DELETE FROM sessions WHERE expires < ?').run(Date.now());
   return info;
 }
 

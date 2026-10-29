@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hors ligne · Loyers</title>
+  <script src="/static/vendor/tailwind.js"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { 500:'#2f7a52', 600:'#256343', 700:'#1c4c34' },
+        ink: { 500:'#6b7280', 900:'#23272a' }, paper: '#f7f7f5' } } }
+    };
+  </script>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+  <meta name="theme-color" content="#256343">
+</head>
+<body class="bg-paper text-ink-900 font-sans antialiased">
+  <main class="min-h-screen flex items-center justify-center p-6">
+    <div class="card p-8 max-w-md w-full text-center space-y-4">
+      <img src="/static/icons/icon-192.png" alt="" class="w-16 h-16 mx-auto">
+      <h1 class="text-xl font-semibold">Serveur de l'application injoignable</h1>
+      <p class="text-sm text-ink-500 leading-relaxed">
+        Cette page est la coquille de l'application, conservée en cache par le navigateur.
+        <strong>Les données ne sont pas enregistrées sur cet appareil</strong> : locataires,
+        paiements et quittances vivent dans la base PostgreSQL du poste qui héberge l'application.
+        Elles redeviendront accessibles dès que ce serveur sera allumé et joignable.
+      </p>
+      <ul class="text-sm text-ink-500 text-left space-y-1.5 bg-white/70 border border-gray-100 rounded-lg p-4">
+        <li>• Vérifiez que le service tourne : <code>pm2 status</code> ou <code>npm start</code> sur le poste hôte.</li>
+        <li>• Aucun document n'a été envoyé, imprimé ni modifié pendant cette coupure.</li>
+        <li>• Les brouillons WhatsApp et e-mail déjà ouverts dans le navigateur restent utilisables.</li>
+      </ul>
+      <a href="/" class="btn btn-primary justify-center w-full">Réessayer</a>
+    </div>
+  </main>
+</body>
+</html>

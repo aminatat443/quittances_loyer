@@ -18,6 +18,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use('/static', express.static(path.join(__dirname, 'public')));
 app.use('/signatures', express.static(config.signatureDir));
+// Manifest, service worker et page hors ligne : à la racine du scope, avant toute session.
+app.use(require('./routes/pwa'));
 
 /**
  * Store de sessions PostgreSQL. express-session attend des callbacks : chaque

@@ -37,7 +37,14 @@
       </a>
     <% }) %>
   </nav>
-  <div class="px-4 py-4 border-t border-gray-100">
+  <div class="px-4 py-4 border-t border-gray-100 space-y-1">
+    <div data-pwa-install data-pwa-menu hidden>
+      <button type="button" data-pwa-button hidden
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-700 hover:bg-gray-50 w-full">
+        <i data-lucide="download" class="w-[18px] h-[18px] text-brand-600"></i>
+        <span data-pwa-label>Installer l'application</span>
+      </button>
+    </div>
     <form method="post" action="/login/logout">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button class="flex items-center gap-2 text-sm text-ink-500 hover:text-ink-900 w-full">
