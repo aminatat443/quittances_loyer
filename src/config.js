@@ -47,6 +47,9 @@ const config = {
     password: process.env.ADMIN_PASSWORD || 'changeme-2026',
   },
   sessionSecret: process.env.SESSION_SECRET || 'dev-insecure-secret-change-me',
+  // À activer (TRUST_PROXY=1) quand l'app tourne derrière un proxy qui termine
+  // le TLS (Render, nginx…): c'est ce qui permet de marquer le cookie Secure.
+  trustProxy: process.env.TRUST_PROXY === '1',
 };
 
 module.exports = config;

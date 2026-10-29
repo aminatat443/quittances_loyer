@@ -66,7 +66,8 @@ Ouvrir <http://localhost:3000>. Les migrations `src/db/migrations/*.sql` sont
 appliquées automatiquement au premier démarrage (les 3 étages, les 3 types de
 logement, les tarifs par défaut, les paramètres et le compte administrateur).
 **Aucun locataire fictif n'est préenregistré** : commencez par créer vos logements
-et locataires.
+et locataires. Pour héberger l'application en ligne (Render) au lieu de la lancer
+sur ce poste, voir §11.
 
 Pour l'utiliser comme un logiciel — icône « Loyers », fenêtre autonome, installation
 sur le poste, sur Android et sur iPhone — voir §6. Les icônes et les ressources
@@ -573,8 +574,11 @@ src/
   utils/router.js        enveloppe les gestionnaires : Express 4 n'attend pas les fonctions async
   utils/params.js        identifiants lus dans l'URL, ramenés à 0 quand ils ne sont pas numériques
 tests/                   node:test + helpers (base PostgreSQL isolée créée et supprimée par fichier)
-scripts/                 smoke.js, stress-print.js, backup.js, migrate-to-postgres.js (import SQLite → PostgreSQL), generate-pwa-assets.js (icônes et écrans de démarrage), purge-demo.js
+scripts/                 smoke.js, stress-print.js, backup.js, migrate-to-postgres.js (import SQLite → PostgreSQL, driver chargé à la demande), generate-pwa-assets.js (icônes et écrans de démarrage), purge-demo.js
 data/                    sauvegardes, signatures (hors service), archive SQLite en lecture seule
+Dockerfile               image de production : Node + Chromium + postgresql-client, donc PDF et sauvegardes possibles en ligne (§11)
+render.yaml              blueprint Render : service web + base PostgreSQL — aucun secret dans le fichier
+.dockerignore            node_modules, .env, data/, tests : rien de personnel ne part dans l'image
 ```
 
 ### Modèle de données
@@ -655,6 +659,80 @@ plus, et les sessions expirées sont purgées au démarrage.
 | Icône ou écran de démarrage absent après modification du logo | `npm run pwa:assets` (Chrome/Chromium doit être installé), puis recharger l'onglet |
 | Message d'erreur PostgreSQL affiché en français | normal : le cluster a `lc_messages = fr_FR`. Les messages affichés à l'écran viennent de l'application, l'erreur brute n'est jamais montrée telle quelle |
 | Emplacement de signature introuvable après restauration | `data/signatures/` n'est pas dans l'archive PostgreSQL : le copier séparément |
+| Build Render interrompu sur « better-sqlite3 » et `node-gyp rebuild` | ce module natif n'est plus une dépendance du projet : pousser le correctif (package.json + package-lock.json) et relancer le déploiement |
+| « Télécharger le PDF » grisé sur Render | le déployé ne vient pas du `Dockerfile` actuel (il installe Chromium) : relancer un build, et vérifier `CHROME_PATH` dans les variables du service |
+| Signature rechargeable perdue après un redéploiement sur Render | le dossier `data/` du conteneur est jetable : monter un volume sur `/app/data`, ou recharger la signature dans Paramètres (§11) |
+| Déconnexion fréquente ou cookie non marqué `Secure` derrière Render | poser `TRUST_PROXY=1` : Render termine le HTTPS et l'application doit le savoir |
+| « The server does not support SSL connections » au démarrage sur Render | la base a été renseignée avec une chaîne externe sans `?sslmode=require` (ou l'inverse) : prendre la chaîne **interne** de la base, `DATABASE_URL` fournie par le blueprint |
+
+## 11. Mise en ligne sur Render
+
+`render.yaml` (blueprint) et `Dockerfile` sont dans le dépôt. L'image contient Node,
+**Chromium** et **postgresql-client** : le téléchargement PDF et le bouton
+« Sauvegarder la base » fonctionnent en ligne exactement comme en local.
+`better-sqlite3` a été retiré des dépendances — c'est un module natif qui ne se
+compile plus sur les Node récents, et il ne servait qu'à l'import SQLite déjà effectué.
+
+### Déployer avec le blueprint
+
+1. Pousser le projet sur GitHub (l'application n'y envoie jamais rien : `.env` et
+   `data/` sont hors de git).
+2. Render → **New → Blueprint** → choisir le dépôt → Render lit `render.yaml`
+   et propose deux ressources : le service web (image) et la base `quittances-db`.
+3. Saisir **ADMIN_PASSWORD** (et les variables `SMTP_*` seulement si tu veux des
+   envois réels). `SESSION_SECRET` est généré par Render, `DATABASE_URL` est
+   injecté automatiquement depuis la base créée.
+4. **Create** : le premier démarrage applique les migrations, les 3 étages, les
+   types de logement, les tarifs, les paramètres et le compte administrateur.
+
+Coût indicatif : service **Starter** + base **Starter** (l'exécution d'une image
+n'est pas éligible au plan gratuit ; une base gratuite Render est supprimée au
+bout de 30 jours).
+
+### Ou configurer à la main
+
+| Réglage | Valeur |
+| --- | --- |
+| Runtime | **Docker** (Image), `Dockerfile` à la racine |
+| Health check path | `/login` |
+| `DATABASE_URL` | chaîne **interne** de la base Render PostgreSQL |
+| `TRUST_PROXY` | `1` — Render termine le HTTPS ; sans ceci le cookie de session n'est jamais marqué `Secure` |
+| `SESSION_SECRET` | une longue chaîne aléatoire (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | le compte créé au premier démarrage |
+| `CHROME_PATH`, `PDF_NO_SANDBOX` | déjà posés dans le `Dockerfile` |
+
+`PORT` est fourni par Render et lu par l'application ; ne pas le figer.
+
+### Ce qui est hébergé, et ce qui ne l'est pas
+
+- La base Render démarre **vide** : aucun locataire, paiement ni quittance de ton
+  poste local n'est transféré. Ce sont deux carnets distincts ; si un jour tu veux
+  basculer les données réelles, c'est `pg_dump` ici, `pg_restore` là-bas — et les
+  données personnelles des locataires quittent alors ta machine.
+- **Signature scannée et dumps de sauvegarde** vivent dans `data/`, donc dans le
+  conteneur : un redéploiement les efface. Deux parades :
+  - Dashboard → service → **Volumes** → monter un volume sur `/app/data`
+    (les volumes d'un service à image ne se déclarent pas dans `render.yaml`) ;
+  - ou recharger la signature dans **Paramètres** après chaque mise en ligne.
+  Dans les deux cas, l'application n'imprime jamais un cachet ou une signature
+  absent : le document reste correct, simplement sans signature.
+- Les sauvegardes cliquées dans l'interface se téléchargent depuis la page
+  Paramètres : garde le fichier `.dump` **hors** de Render. Côté serveur, les
+  base Render sont snapshotées automatiquement (rétention selon le plan).
+
+### Après une mise en ligne
+
+Ouvrir `https://<service>.onrender.com`, puis vérifier : connexion admin, tableau
+de bord, génération d'un mois, téléchargement PDF (le bouton doit être actif),
+impression A4, et l'installation PWA — Chrome sur Ubuntu, et **ajouter à l'écran
+d'accueil** sur Android. HTTPS y est natif, donc le bandeau « Installer
+l'application » apparaît, contrairement à `http://localhost` du poste.
+
+`git push` redéploie automatiquement. Pense à incrémenter `VERSION` dans
+`src/public/sw.js` quand la coquille change, sinon les appareils déjà installés
+gardent l'ancienne interface jusqu'au bandeau « Mettre à jour ».
+
+---
 
 ## Licence
 

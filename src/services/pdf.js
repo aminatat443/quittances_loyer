@@ -89,13 +89,19 @@ function isRoot() {
   return typeof process.getuid === 'function' && process.getuid() === 0;
 }
 
+// Dans un conteneur, le noyau ne fournit presque jamais de namespace d'utilisateur :
+// le bac à sable de Chromium y échoue, d'où PDF_NO_SANDBOX pour les images Docker.
+function withoutSandbox() {
+  return isRoot() || process.env.PDF_NO_SANDBOX === '1';
+}
+
 function chromePdf(html, bin) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quittances-pdf-'));
   const htmlFile = path.join(dir, 'documents.html');
   const pdfFile = path.join(dir, 'documents.pdf');
   try {
     fs.writeFileSync(htmlFile, html, { mode: 0o600 });
-    const args = (flags) => [...flags, ...BASE_FLAGS, ...(isRoot() ? ['--no-sandbox'] : []),
+    const args = (flags) => [...flags, ...BASE_FLAGS, ...(withoutSandbox() ? ['--no-sandbox'] : []),
       `--user-data-dir=${path.join(dir, 'profile')}`,
       `--print-to-pdf=${pdfFile}`, `file://${htmlFile}`];
     let run = spawnSync(bin, args(['--headless=new']), { timeout: 120000, encoding: 'utf8' });

@@ -12,7 +12,11 @@ app.disable('x-powered-by');
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.set('trust proxy', false);
+app.set('trust proxy', config.trustProxy ? 1 : false);
+
+// Signatures et sauvegardes vivent dans des dossiers gitignorés : absents d'un clone frais.
+fs.mkdirSync(config.signatureDir, { recursive: true });
+fs.mkdirSync(config.backupDir, { recursive: true });
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -71,7 +75,7 @@ app.use(session({
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 },
+  cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 7 * 24 * 3600 * 1000 },
 }));
 // variables globales des vues — avant le CSRF pour que la page « session expirée » puisse s'afficher
 const { viewGlobals } = require('./services/views');

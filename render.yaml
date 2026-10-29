@@ -1,0 +1,48 @@
+# Blueprint Render — https://render.com/docs/blueprint-spec
+# Ce fichier déclare le service et sa base, mais ne contient aucun secret :
+# ADMIN_PASSWORD et les variables optionnelles sont à saisir dans le tableau de bord
+# (sync: false = valeur demandée à la création, jamais lue depuis le dépôt).
+services:
+  - type: web
+    name: quittances-loyer
+    runtime: image
+    image:
+      source: ./Dockerfile
+    plan: starter
+    region: paris
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render termine le HTTPS et transmet X-Forwarded-Proto : sans ceci, le cookie
+      # de session ne serait jamais marqué Secure.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quittances-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Envois réels : à renseigner uniquement si tu veux que l'application remette
+      # les e-mails à un serveur SMTP (sinon elle prépare un brouillon, sans mentir).
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+databases:
+  - name: quittances-db
+    databaseName: quittances
+    plan: starter
+    postgresMajorVersion: "16"

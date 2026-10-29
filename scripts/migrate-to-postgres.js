@@ -3,10 +3,23 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const Database = require('better-sqlite3');
 const config = require('../src/config');
 const db = require('../src/db');
 const settings = require('../src/services/settings');
+
+/**
+ * L'application ne dépend plus de SQLite (moteur PostgreSQL unique) : le pilote
+ * n'est nécessaire que pour relire l'archive, d'où un chargement à la demande.
+ */
+function sqliteDriver() {
+  try {
+    return require('better-sqlite3');
+  } catch {
+    console.error('Le module « better-sqlite3 » est absent : installez-le sans l\'enregistrer,\n'
+      + '  npm install --no-save better-sqlite3\npuis relancez npm run migrate:postgres.');
+    return null;
+  }
+}
 
 /**
  * Importe l'ancienne base SQLite dans PostgreSQL, en conservant les identifiants
@@ -118,6 +131,9 @@ async function main() {
 
   console.log(`Source  : ${from}`);
   console.log(`Cible   : ${config.databaseLabel}`);
+
+  const Database = sqliteDriver();
+  if (!Database) return;
 
   // L'archive peut avoir tout son contenu dans son fichier -wal non reporté :
   // on part d'une copie cohérente plutôt que de lire le seul fichier principal.

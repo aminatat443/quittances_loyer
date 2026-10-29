@@ -26,8 +26,5 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.1",
     "pg": "^8.23.1"
-  },
-  "devDependencies": {
-    "better-sqlite3": "^11.10.0"
   }
 }
